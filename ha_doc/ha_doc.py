@@ -104,7 +104,7 @@ def demo_data():
         st("input_boolean.gaeste_modus", "off", friendly_name="Gäste-Modus"),
         st("input_number.heizung_soll", "21", friendly_name="Heizung Soll", min=15, max=25, unit_of_measurement="°C"),
         st("timer.waschmaschine", "idle", friendly_name="Timer Waschmaschine"),
-        st("person.markus", "home", friendly_name="Markus"),
+        st("person.anna", "home", friendly_name="Anna"),
         st("scene.nacht", "unknown", friendly_name="Nacht"),
     ]
     return {
@@ -151,7 +151,7 @@ def demo_data():
                                      {"trigger": "time", "at": "13:00:00"}],
                         "conditions": [{"condition": "or", "conditions": [
                             {"condition": "time", "weekday": ["mon", "tue", "wed", "thu", "fri"]},
-                            {"condition": "state", "entity_id": "person.markus", "state": "home"}]}],
+                            {"condition": "state", "entity_id": "person.anna", "state": "home"}]}],
                         "actions": [{"if": [{"condition": "state", "entity_id": "cover.wohnzimmer_storen", "state": "open"}],
                                      "then": [{"action": "cover.set_cover_position", "target": {"entity_id": "cover.wohnzimmer_storen"}, "data": {"position": 20}}],
                                      "else": [{"stop": "Bereits geschlossen"}]}]}},
@@ -165,8 +165,8 @@ def demo_data():
              "config": {"alias": "Gute Nacht", "mode": "single",
                         "triggers": [{"trigger": "time", "at": "22:30:00"}],
                         "actions": [{"action": "scene.turn_on", "target": {"entity_id": "scene.nacht"}},
-                                    {"choose": [{"conditions": [{"condition": "state", "entity_id": "person.markus", "state": "home"}],
-                                                 "sequence": [{"action": "notify.mobile_app_markus", "data": {"message": "Gute Nacht!"}}]}],
+                                    {"choose": [{"conditions": [{"condition": "state", "entity_id": "person.anna", "state": "home"}],
+                                                 "sequence": [{"action": "notify.mobile_app_anna", "data": {"message": "Gute Nacht!"}}]}],
                                      "default": []}]}},
         ],
         "blueprints": {"automation": {"s42/storensteuerung.yaml": {"metadata": {
@@ -652,7 +652,8 @@ def bp_rows(inputs, meta, n):
     return rows, same
 
 
-def build_pdf(data, out_path, title="Home Assistant Dokumentation", sections=None):
+def build_pdf(data, out_path, title="Home Assistant Dokumentation", sections=None, options=None):
+    opts = options or {}
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
@@ -755,7 +756,7 @@ def build_pdf(data, out_path, title="Home Assistant Dokumentation", sections=Non
     areas_sorted = sorted(data["areas"], key=lambda a: (floors.get(a.get("floor_id"), {}).get("level", 99), a["name"]))
     CELLM = ParagraphStyle("CM", parent=CELL, fontName="Courier", fontSize=7, leading=9)
 
-    def device_table(head_text, sub_text, ents):
+    def device_table(head_text, sub_text, ents, hidden=0):
         """Ein Kasten pro Gerät: Kopfzeile mit Gerätename, darunter eine Zeile pro Entität (Kopf wiederholt sich auf Folgeseiten)."""
         head = Paragraph("<b>" + escape(head_text) + "</b>" +
                          (f"  <font color='#6b7785'>{escape(sub_text)}</font>" if sub_text else ""), CELL)
@@ -763,7 +764,9 @@ def build_pdf(data, out_path, title="Home Assistant Dokumentation", sections=Non
         for e in ents:
             nm = n.names.get(e, "")
             rows.append([Paragraph(escape(nm if nm != e else ""), CELL), Paragraph(escape(e), CELLM)])
-        if not ents:
+        if hidden:
+            rows.append([Paragraph("", SMALL), Paragraph(f"+ {hidden} Konfigurations-/Diagnose-Entitäten ausgeblendet", SMALL)])
+        elif not ents:
             rows.append([Paragraph("(keine Entitäten)", SMALL), ""])
         t = Table(rows, colWidths=[75 * mm, W - 75 * mm], repeatRows=1)
         t.setStyle(TableStyle([("SPAN", (0, 0), (-1, 0)), ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e1f3fc")),
@@ -773,7 +776,17 @@ def build_pdf(data, out_path, title="Home Assistant Dokumentation", sections=Non
         return t
 
     ent_ids_with_device = {e["entity_id"] for e in data["entities"] if e.get("device_id")}
+    ent_cat = {e["entity_id"]: e.get("entity_category") for e in data["entities"]}
+
+    def split_diag(ents):
+        if not opts.get("hide_diagnostic"):
+            return ents, 0
+        shown = [e for e in ents if ent_cat.get(e) not in ("config", "diagnostic")]
+        return shown, len(ents) - len(shown)
+
     for a in areas_sorted + [{"area_id": None, "name": "Ohne Bereich", "floor_id": None}]:
+        if opts.get("areas") is not None and (a["area_id"] or "_none") not in opts["areas"]:
+            continue
         devs = [d for d in data["devices"] if d.get("area_id") == a["area_id"]]
         loose = [e for e, ar in area_of_ent.items() if ar == a["area_id"] and e not in ent_ids_with_device]
         if not devs and not loose:
@@ -782,10 +795,12 @@ def build_pdf(data, out_path, title="Home Assistant Dokumentation", sections=Non
         story.append(Paragraph(escape(a["name"] + (f"  ({fl})" if fl else "")), H2))
         for d in sorted(devs, key=lambda x: (x.get("name_by_user") or x.get("name") or "").lower()):
             sub = f"{d.get('manufacturer') or ''} {d.get('model') or ''}".strip()
-            story.append(device_table(d.get("name_by_user") or d.get("name") or "?", sub, ents_by_dev.get(d["id"], [])))
+            shown, hid = split_diag(ents_by_dev.get(d["id"], []))
+            story.append(device_table(d.get("name_by_user") or d.get("name") or "?", sub, shown, hid))
             story.append(Spacer(1, 2.5 * mm))
         if loose:
-            story.append(device_table("Entitäten ohne Gerät", "z. B. Helfer, Vorlagen, Automatisierungen", sorted(loose)))
+            shown, hid = split_diag(sorted(loose))
+            story.append(device_table("Entitäten ohne Gerät", "z. B. Helfer, Vorlagen, Automatisierungen", shown, hid))
             story.append(Spacer(1, 2.5 * mm))
     story.append(PageBreak())
 
@@ -796,6 +811,15 @@ def build_pdf(data, out_path, title="Home Assistant Dokumentation", sections=Non
                        [[e.get("title"), e.get("domain"), e.get("state"), e.get("source")] for e in sorted(data["entries"], key=lambda x: x.get("domain", ""))],
                        [55 * mm, 40 * mm, 30 * mm, W - 125 * mm]))
     story.append(PageBreak())
+
+    known = {s["entity_id"] for s in data["states"]}
+
+    def missing_refs(it):
+        c = it.get("config")
+        if not c:
+            return []
+        refs = set(_find_entity_refs(c)) | set(_blueprint_refs((c.get("use_blueprint") or {}).get("input")))
+        return sorted(r for r in refs if r not in known and r != "all")
 
     def blueprint_block(c, kind):
         bp = c.get("use_blueprint") or {}
@@ -858,14 +882,20 @@ def build_pdf(data, out_path, title="Home Assistant Dokumentation", sections=Non
     # Automatisierungen
     def render_items(heading, items, kind, text=True, schema=False):
         story.append(Paragraph(heading, H1))
+        if opts.get("only_problems"):
+            items = [it for it in items if missing_refs(it)]
+            story.append(P("Gefiltert: nur Einträge mit fehlenden Entitäten.", SMALL))
         if not items:
-            story.append(P("Keine vorhanden."))
+            story.append(P("Keine vorhanden." if not opts.get("only_problems") else "Keine Einträge mit fehlenden Entitäten."))
         for it in sorted(items, key=lambda x: (x["attrs"].get("friendly_name") or x["entity_id"]).lower()):
             c = it["config"]
             name = it["attrs"].get("friendly_name") or it["entity_id"]
             status = {"on": "aktiv", "off": "deaktiviert"}.get(it["state"], it["state"]) if kind == "automation" else ""
             blk = [Paragraph(escape(name), H3), P(it["entity_id"] + (f"  |  Status: {status}" if status else "") +
                    (f"  |  Modus: {c.get('mode') or it['attrs'].get('mode')}" if kind != "scene" and (c or it['attrs'].get('mode')) else ""), SMALL)]
+            mr = missing_refs(it)
+            if mr:
+                blk.append(P("Fehlende Entitäten: " + ", ".join(mr), ParagraphStyle("miss", parent=SMALL, textColor=colors.HexColor("#c62828"))))
             if c is None:
                 blk.append(P("Konfiguration nicht über die API lesbar (z. B. in YAML definiert).", SMALL))
                 story.append(KeepTogether(blk))
@@ -1003,6 +1033,9 @@ def main():
     ap.add_argument("--demo", action="store_true", help="Beispieldaten verwenden")
     ap.add_argument("--dump-json", help="Rohdaten zusätzlich als JSON speichern")
     ap.add_argument("-o", "--output", default="ha_dokumentation.pdf")
+    ap.add_argument("--areas", help="Kommagetrennt: Bereichs-IDs (und _none für «Ohne Bereich»); Standard: alle")
+    ap.add_argument("--only-problems", action="store_true", help="Automatisierungen/Skripte/Szenen nur mit fehlenden Entitäten")
+    ap.add_argument("--hide-diagnostic", action="store_true", help="Konfigurations- und Diagnose-Entitäten ausblenden")
     ap.add_argument("--sections", help="Kommagetrennt, z. B. automatisierungen,helfer (Standard: alles). Mögliche Werte: " + ",".join(k for k, _ in SECTIONS))
     a = ap.parse_args()
     if a.demo:
@@ -1014,7 +1047,9 @@ def main():
     if a.dump_json:
         with open(a.dump_json, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=1)
-    build_pdf(data, a.output, sections=a.sections.split(",") if a.sections else None)
+    build_pdf(data, a.output, sections=a.sections.split(",") if a.sections else None,
+              options={"areas": a.areas.split(",") if a.areas else None, "only_problems": a.only_problems,
+                       "hide_diagnostic": a.hide_diagnostic})
     print(f"Fertig: {a.output}")
 
 

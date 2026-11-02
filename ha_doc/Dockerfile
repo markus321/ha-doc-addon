@@ -1,6 +1,7 @@
 FROM python:3.12-alpine
 
-RUN pip install --no-cache-dir reportlab requests websocket-client
+RUN apk add --no-cache tzdata \
+ && pip install --no-cache-dir reportlab requests websocket-client
 
 COPY ha_doc.py server.py /app/
 

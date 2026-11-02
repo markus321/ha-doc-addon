@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
-"""Ingress-Weboberflaeche fuer das HA-Doku-Add-on (nur Standardbibliothek)."""
+"""Ingress-Weboberfläche und Zeitplan für das HA-Doku-Add-on (nur Standardbibliothek + ha_doc)."""
+import calendar
 import datetime as dt
 import html
+import json
 import os
 import threading
+import time
 import traceback
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote
@@ -11,28 +14,161 @@ from urllib.parse import parse_qs, unquote
 import ha_doc
 
 OUT_DIR = os.environ.get("HA_DOC_OUT", "/share/ha_doc")
+DATA_DIR = os.environ.get("HA_DOC_DATA", "/data")
 DEMO = os.environ.get("HA_DOC_DEMO") == "1"
 PORT = int(os.environ.get("HA_DOC_PORT", "8099"))
 SUPERVISOR_IP = "172.30.32.2"  # Ingress-Anfragen kommen nur von hier
 os.makedirs(OUT_DIR, exist_ok=True)
 
-state = {"running": False, "msg": "", "error": "", "sections": [k for k, _ in ha_doc.SECTIONS]}
+
+def load_options():
+    path = os.environ.get("HA_DOC_OPTIONS", os.path.join(DATA_DIR, "options.json"))
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+OPTIONS = load_options()
+ALL_SECTIONS = [k for k, _ in ha_doc.SECTIONS]
+state = {"running": False, "msg": "", "error": "", "sections": list(ALL_SECTIONS), "areas": None,
+         "hide_diag": False, "only_problems": False}
 lock = threading.Lock()
+_areas_cache = {"t": 0.0, "v": []}
+_tz_cache = {}
 
 
-def generate(sections):
+# --------------------------------------------------------------------------
+# Hilfsfunktionen
+# --------------------------------------------------------------------------
+
+def sup_get(path):
+    import requests
+    r = requests.get("http://supervisor/core" + path, headers={"Authorization": "Bearer " + os.environ["SUPERVISOR_TOKEN"]}, timeout=20)
+    return r.json() if r.status_code == 200 else None
+
+
+def get_tz():
+    if "tz" not in _tz_cache:
+        name = "UTC"
+        try:
+            if not DEMO:
+                name = (sup_get("/api/config") or {}).get("time_zone") or "UTC"
+            from zoneinfo import ZoneInfo
+            _tz_cache["tz"] = ZoneInfo(name)
+        except Exception:
+            _tz_cache["tz"] = dt.timezone.utc
+    return _tz_cache["tz"]
+
+
+def get_areas():
+    """Liste (area_id, Name) für die Bereichsauswahl, 2 Minuten zwischengespeichert."""
+    if time.time() - _areas_cache["t"] < 120 and _areas_cache["v"]:
+        return _areas_cache["v"]
+    try:
+        if DEMO:
+            raw = ha_doc.demo_data()["areas"]
+        else:
+            c = ha_doc.HAClient(None, os.environ["SUPERVISOR_TOKEN"], supervisor=True)
+            raw = c.ws_call("config/area_registry/list") or []
+            c.ws.close()
+        _areas_cache["v"] = sorted(((a["area_id"], a["name"]) for a in raw), key=lambda x: x[1].lower())
+        _areas_cache["t"] = time.time()
+    except Exception:
+        traceback.print_exc()
+    return _areas_cache["v"]
+
+
+def cleanup_old():
+    keep = int(OPTIONS.get("keep_last", 12) or 12)
+    files = sorted(f for f in os.listdir(OUT_DIR) if f.startswith("ha_dokumentation_") and f.endswith(".pdf"))
+    for f in files[:-keep] if len(files) > keep else []:
+        try:
+            os.remove(os.path.join(OUT_DIR, f))
+        except OSError:
+            pass
+
+
+def generate(sections, options, source="manuell"):
     try:
         state.update(msg="Lese Daten aus Home Assistant …", error="")
         data = ha_doc.demo_data() if DEMO else ha_doc.fetch_all(None, os.environ["SUPERVISOR_TOKEN"], supervisor=True)
         state["msg"] = "Erstelle PDF …"
         name = dt.datetime.now().strftime("ha_dokumentation_%Y%m%d_%H%M%S.pdf")
-        ha_doc.build_pdf(data, os.path.join(OUT_DIR, name), sections=sections)
-        state["msg"] = f"Fertig: {name}"
+        ha_doc.build_pdf(data, os.path.join(OUT_DIR, name), sections=sections, options=options)
+        cleanup_old()
+        state["msg"] = f"Fertig ({source}): {name}"
     except Exception:
         state["error"] = traceback.format_exc()
         state["msg"] = "Fehler beim Erstellen"
     finally:
         state["running"] = False
+
+
+def start_generation(sections, options, source="manuell"):
+    with lock:
+        if state["running"]:
+            return False
+        state["running"] = True
+        state["msg"] = "Starte …"
+    threading.Thread(target=generate, args=(sections, options, source), daemon=True).start()
+    return True
+
+
+# --------------------------------------------------------------------------
+# Monatlicher Bericht
+# --------------------------------------------------------------------------
+
+SCHED_FILE = os.path.join(DATA_DIR, "scheduler.json")
+
+
+def last_run():
+    try:
+        with open(SCHED_FILE, encoding="utf-8") as f:
+            return json.load(f).get("last", "")
+    except Exception:
+        return ""
+
+
+def mark_run(key):
+    try:
+        with open(SCHED_FILE, "w", encoding="utf-8") as f:
+            json.dump({"last": key}, f)
+    except Exception:
+        traceback.print_exc()
+
+
+def scheduler_loop():
+    while True:
+        try:
+            if OPTIONS.get("schedule_enabled"):
+                now = dt.datetime.now(get_tz())
+                day = min(int(OPTIONS.get("schedule_day", 1)), calendar.monthrange(now.year, now.month)[1])
+                hhmm = str(OPTIONS.get("schedule_time", "03:00"))
+                key = now.strftime("%Y-%m")
+                if now.day == day and now.strftime("%H:%M") >= hhmm and last_run() != key:
+                    if start_generation(list(ALL_SECTIONS), {"hide_diagnostic": True}, source="automatisch"):
+                        mark_run(key)
+        except Exception:
+            traceback.print_exc()
+        time.sleep(30)
+
+
+def schedule_info():
+    if not OPTIONS.get("schedule_enabled"):
+        return "Automatischer Monatsbericht: aus (einschalten unter Konfiguration des Add-ons)."
+    last = last_run()
+    return (f"Automatischer Monatsbericht: jeden Monat am {OPTIONS.get('schedule_day', 1)}. um {OPTIONS.get('schedule_time', '03:00')} Uhr, "
+            f"es werden die letzten {OPTIONS.get('keep_last', 12)} PDFs behalten" + (f" (zuletzt: {last})." if last else "."))
+
+
+# --------------------------------------------------------------------------
+# Weboberfläche
+# --------------------------------------------------------------------------
+
+def checkbox(name, value, label, checked):
+    return f'<label class="opt"><input type="checkbox" name="{name}" value="{html.escape(value)}"{" checked" if checked else ""}> {html.escape(label)}</label>'
 
 
 def page():
@@ -43,27 +179,39 @@ def page():
     ) or '<tr><td colspan="2">Noch keine PDFs erstellt.</td></tr>'
     refresh = '<meta http-equiv="refresh" content="2">' if state["running"] else ""
     btn = "disabled" if state["running"] else ""
-    boxes = "".join(
-        f'<label class="opt"><input type="checkbox" name="sections" value="{k}"{" checked" if k in state["sections"] else ""}> {html.escape(label)}</label>'
-        for k, label in ha_doc.SECTIONS)
     err = f'<pre class="err">{html.escape(state["error"])}</pre>' if state["error"] else ""
+    boxes = "".join(checkbox("sections", k, label, k in state["sections"]) for k, label in ha_doc.SECTIONS)
+    areas = get_areas()
+    area_html = ""
+    if areas:
+        sel = state["areas"]
+        items = "".join(checkbox("areas", aid, name, sel is None or aid in sel) for aid, name in areas)
+        items += checkbox("areas", "_none", "Ohne Bereich", sel is None or "_none" in sel)
+        area_html = (f'<details><summary>Bereiche auswählen ({len(areas) + 1})</summary><input type="hidden" name="areas_present" value="1">'
+                     f'<div class="opts">{items}</div></details>')
+    extra = (checkbox("hide_diag", "1", "Konfigurations- und Diagnose-Entitäten ausblenden (kürzere Geräteliste)", state["hide_diag"]) +
+             checkbox("only_problems", "1", "Automatisierungen, Skripte, Szenen: nur mit fehlenden Entitäten", state["only_problems"]))
     return f"""<!doctype html><html lang="de"><head><meta charset="utf-8">{refresh}
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>HA Doku</title>
 <style>
-body{{font-family:system-ui,sans-serif;margin:0;padding:24px;max-width:760px;color:#1f2933;background:#fafbfc}}
-h1{{margin-top:0}} button{{background:#03a9f4;color:#fff;border:0;padding:12px 22px;border-radius:8px;font-size:16px;cursor:pointer}}
+body{{font-family:system-ui,sans-serif;margin:0;padding:24px;max-width:820px;color:#1f2933;background:#fafbfc}}
+h1{{margin-top:0}} h2{{font-size:15px;margin:18px 0 6px;color:#52606d}} button{{background:#03a9f4;color:#fff;border:0;padding:12px 22px;border-radius:8px;font-size:16px;cursor:pointer}}
 button[disabled]{{background:#9bbccc;cursor:wait}} table{{border-collapse:collapse;width:100%;margin-top:18px;background:#fff}}
 td,th{{border:1px solid #e1e5e9;padding:8px 10px;text-align:left}} .msg{{margin:14px 0;color:#52606d}}
-.opts{{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px;margin:12px 0 18px}}
-.opt{{background:#fff;border:1px solid #e1e5e9;border-radius:8px;padding:8px 10px;cursor:pointer}}
-.err{{background:#fdecea;padding:10px;overflow:auto;font-size:12px}}
+.opts{{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:6px;margin:8px 0}}
+.opt{{background:#fff;border:1px solid #e1e5e9;border-radius:8px;padding:8px 10px;cursor:pointer;display:block}}
+details{{margin:10px 0}} summary{{cursor:pointer;color:#0277bd}} .err{{background:#fdecea;padding:10px;overflow:auto;font-size:12px}}
 </style></head><body>
 <h1>Home Assistant Dokumentation</h1>
-<p>Erstellt ein PDF mit Bereichen, Geräten, Automatisierungen, Skripten, Szenen und Auffälligkeiten.</p>
-<form method="post" action="generate"><div class="opts">{boxes}</div><button {btn}>PDF erstellen</button></form>
+<p>Erstellt ein PDF deiner Installation. Wähle, was enthalten sein soll.</p>
+<form method="post" action="generate">
+<h2>Abschnitte</h2><div class="opts">{boxes}</div>
+<h2>Optionen</h2><div class="opts" style="grid-template-columns:1fr">{extra}</div>
+{area_html}
+<p><button {btn}>PDF erstellen</button></p></form>
 <div class="msg">{html.escape(state["msg"])}</div>{err}
 <table><tr><th>Datei</th><th>Grösse</th></tr>{rows}</table>
-<p class="msg">Ablage: Freigabe «share» → Ordner ha_doc</p>
+<p class="msg">{html.escape(schedule_info())}<br>Ablage: Freigabe «share» → Ordner ha_doc</p>
 </body></html>"""
 
 
@@ -104,16 +252,15 @@ class Handler(BaseHTTPRequestHandler):
             return
         length = int(self.headers.get("Content-Length") or 0)
         form = parse_qs(self.rfile.read(length).decode("utf-8", "replace"))
-        valid = {k for k, _ in ha_doc.SECTIONS}
-        sections = [x for x in form.get("sections", []) if x in valid]
-        with lock:
-            if not sections:
-                state["msg"] = "Bitte mindestens einen Abschnitt auswählen."
-            elif not state["running"]:
-                state["running"] = True
-                state["sections"] = sections
-                state["msg"] = "Starte …"
-                threading.Thread(target=generate, args=(sections,), daemon=True).start()
+        sections = [x for x in form.get("sections", []) if x in ALL_SECTIONS]
+        area_ids = {a for a, _ in get_areas()} | {"_none"}
+        areas = [x for x in form.get("areas", []) if x in area_ids] if "areas_present" in form else None
+        opts = {"hide_diagnostic": "hide_diag" in form, "only_problems": "only_problems" in form, "areas": areas}
+        if not sections:
+            state["msg"] = "Bitte mindestens einen Abschnitt auswählen."
+        else:
+            state.update(sections=sections, areas=areas, hide_diag=opts["hide_diagnostic"], only_problems=opts["only_problems"])
+            start_generation(sections, opts)
         self._send(303, "", extra={"Location": "./"})
 
     def log_message(self, fmt, *args):
@@ -122,4 +269,5 @@ class Handler(BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     print(f"HA-Doku-Server auf Port {PORT}", flush=True)
+    threading.Thread(target=scheduler_loop, daemon=True).start()
     ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()

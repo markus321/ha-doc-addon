@@ -1,0 +1,13 @@
+configuration:
+  schedule_enabled:
+    name: Create a monthly report
+    description: Creates a full PDF once a month. The add-on must be running (enable "Start on boot").
+  schedule_day:
+    name: Day of month
+    description: Day on which the report is created (1-28).
+  schedule_time:
+    name: Time
+    description: Time as HH:MM (your Home Assistant time zone).
+  keep_last:
+    name: Number of PDFs to keep
+    description: Older PDFs are deleted automatically, the newest are kept.

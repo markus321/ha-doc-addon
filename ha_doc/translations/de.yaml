@@ -1,0 +1,13 @@
+configuration:
+  schedule_enabled:
+    name: Monatlichen Bericht erstellen
+    description: Erstellt automatisch einmal im Monat ein vollständiges PDF. Das Add-on muss dafür laufen («Beim Systemstart starten» einschalten).
+  schedule_day:
+    name: Tag im Monat
+    description: Tag, an dem der Bericht erstellt wird (1–28).
+  schedule_time:
+    name: Uhrzeit
+    description: Uhrzeit im Format HH:MM (Zeitzone deines Home Assistant).
+  keep_last:
+    name: Anzahl aufbewahrter PDFs
+    description: Ältere PDFs werden automatisch gelöscht, es bleiben die neuesten.
