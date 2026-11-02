@@ -1,12 +1,11 @@
 name: "HA Doku (PDF)"
-version: "0.1.0"
+version: "0.1.1"
 slug: ha_doc
 description: "Dokumentiert Home Assistant automatisch als PDF"
 url: "https://github.com/markus321/ha-doc-addon"
 arch:
   - aarch64
   - amd64
-  - armv7
 init: false
 startup: application
 boot: manual
