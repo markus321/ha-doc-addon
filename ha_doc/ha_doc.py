@@ -445,7 +445,7 @@ def build_pdf(data, out_path, title="Home Assistant Dokumentation", sections=Non
     ACC = colors.HexColor("#03a9f4")
     DARK = colors.HexColor("#1f2933")
     H1 = ParagraphStyle("H1", parent=ss["Heading1"], textColor=DARK, fontSize=18, spaceBefore=6, spaceAfter=8)
-    H2 = ParagraphStyle("H2", parent=ss["Heading2"], textColor=ACC, fontSize=13, spaceBefore=10, spaceAfter=4)
+    H2 = ParagraphStyle("H2", parent=ss["Heading2"], textColor=ACC, fontSize=13, spaceBefore=10, spaceAfter=4, keepWithNext=1)
     H3 = ParagraphStyle("H3", parent=ss["Heading3"], textColor=DARK, fontSize=10.5, spaceBefore=6, spaceAfter=2)
     BODY = ParagraphStyle("B", parent=ss["BodyText"], fontSize=9, leading=12)
     SMALL = ParagraphStyle("S", parent=BODY, fontSize=8, textColor=colors.grey)
@@ -530,26 +530,40 @@ def build_pdf(data, out_path, title="Home Assistant Dokumentation", sections=Non
     story = main if on("bereiche") else []
     story.append(Paragraph("Bereiche und Geräte", H1))
     areas_sorted = sorted(data["areas"], key=lambda a: (floors.get(a.get("floor_id"), {}).get("level", 99), a["name"]))
+    CELLM = ParagraphStyle("CM", parent=CELL, fontName="Courier", fontSize=7, leading=9)
+
+    def device_table(head_text, sub_text, ents):
+        """Ein Kasten pro Gerät: Kopfzeile mit Gerätename, darunter eine Zeile pro Entität (Kopf wiederholt sich auf Folgeseiten)."""
+        head = Paragraph("<b>" + escape(head_text) + "</b>" +
+                         (f"  <font color='#6b7785'>{escape(sub_text)}</font>" if sub_text else ""), CELL)
+        rows = [[head, ""]]
+        for e in ents:
+            nm = n.names.get(e, "")
+            rows.append([Paragraph(escape(nm if nm != e else ""), CELL), Paragraph(escape(e), CELLM)])
+        if not ents:
+            rows.append([Paragraph("(keine Entitäten)", SMALL), ""])
+        t = Table(rows, colWidths=[75 * mm, W - 75 * mm], repeatRows=1)
+        t.setStyle(TableStyle([("SPAN", (0, 0), (-1, 0)), ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e1f3fc")),
+                               ("GRID", (0, 0), (-1, -1), 0.25, colors.lightgrey), ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                               ("TOPPADDING", (0, 0), (-1, -1), 2), ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+                               ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f5f8fa")])]))
+        return t
+
+    ent_ids_with_device = {e["entity_id"] for e in data["entities"] if e.get("device_id")}
     for a in areas_sorted + [{"area_id": None, "name": "Ohne Bereich", "floor_id": None}]:
         devs = [d for d in data["devices"] if d.get("area_id") == a["area_id"]]
-        loose = [e for e, ar in area_of_ent.items() if ar == a["area_id"] and not next((x for x in data["entities"] if x["entity_id"] == e and x.get("device_id")), None)]
+        loose = [e for e, ar in area_of_ent.items() if ar == a["area_id"] and e not in ent_ids_with_device]
         if not devs and not loose:
             continue
         fl = floors.get(a.get("floor_id"), {}).get("name")
-        block = [Paragraph(escape(a["name"] + (f"  ({fl})" if fl else "")), H2)]
-        rows = [["Gerät", "Hersteller / Modell", "Entitäten"]]
-        for d in devs:
-            # Viele Entitäten auf mehrere Zeilen verteilen (sonst passt die Zelle nicht auf eine Seite)
-            ents = ents_by_dev.get(d["id"], []) or [""]
-            for i in range(0, len(ents), 10):
-                first = i == 0
-                rows.append([(d.get("name_by_user") or d.get("name") or "?") if first else "",
-                             f"{d.get('manufacturer') or ''} {d.get('model') or ''}".strip() if first else "",
-                             "\n".join(ents[i:i + 10])])
-        for e in loose:
-            rows.append(["(ohne Gerät)", "", e])
-        block.append(table(rows, [50 * mm, 50 * mm, W - 100 * mm]))
-        story.append(KeepTogether(block[:2]))
+        story.append(Paragraph(escape(a["name"] + (f"  ({fl})" if fl else "")), H2))
+        for d in sorted(devs, key=lambda x: (x.get("name_by_user") or x.get("name") or "").lower()):
+            sub = f"{d.get('manufacturer') or ''} {d.get('model') or ''}".strip()
+            story.append(device_table(d.get("name_by_user") or d.get("name") or "?", sub, ents_by_dev.get(d["id"], [])))
+            story.append(Spacer(1, 2.5 * mm))
+        if loose:
+            story.append(device_table("Entitäten ohne Gerät", "z. B. Helfer, Vorlagen, Automatisierungen", sorted(loose)))
+            story.append(Spacer(1, 2.5 * mm))
     story.append(PageBreak())
 
     # Integrationen
