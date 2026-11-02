@@ -12,7 +12,7 @@ Die PDFs liegen in der Freigabe `share`, Ordner `ha_doc`.
 
 ## Konfiguration (Monatsbericht)
 
-Der Monatsbericht kann dieselben Filter nutzen wie die Oberfläche:
+Der Monatsbericht nutzt standardmässig die Auswahl der Oberfläche: Wähle in «HA Doku» Abschnitte und Filter und klicke auf **Auswahl für Monatsbericht speichern**. Ist nichts gespeichert oder `schedule_from_ui` aus, gelten diese Optionen:
 
 | Option | Bedeutung |
 |---|---|
@@ -20,6 +20,7 @@ Der Monatsbericht kann dieselben Filter nutzen wie die Oberfläche:
 | schedule_day | Tag im Monat (1–28) |
 | schedule_time | Uhrzeit `HH:MM` (Zeitzone von Home Assistant) |
 | keep_last | Anzahl aufbewahrter PDFs (ältere werden gelöscht) |
+| schedule_from_ui | Auswahl der Oberfläche für den Monatsbericht verwenden (Standard: an) |
 | schedule_uebersicht … schedule_auffaelligkeiten | Ein Schalter pro Abschnitt im Bericht (Standard: alle an) |
 | schedule_hide_diagnostic | Konfigurations-/Diagnose-Entitäten ausblenden (Standard: ja) |
 | schedule_only_problems | Nur Einträge mit fehlenden Entitäten |

@@ -1,5 +1,8 @@
 # Änderungen
 
+## 0.2.3
+- Monatsbericht nutzt die in der Oberfläche gespeicherte Auswahl («Auswahl für Monatsbericht speichern»), inklusive Bereichen. Die Konfiguration dient als Ersatz.
+
 ## 0.2.2
 - Konfiguration: Abschnitte des Monatsberichts sind jetzt einzelne Schalter statt einer Liste (die Liste liess sich nicht bearbeiten).
 

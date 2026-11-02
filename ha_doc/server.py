@@ -121,6 +121,32 @@ def start_generation(sections, options, source="manuell"):
 # --------------------------------------------------------------------------
 
 SCHED_FILE = os.path.join(DATA_DIR, "scheduler.json")
+UI_FILE = os.path.join(DATA_DIR, "schedule_ui.json")
+
+
+def load_ui_settings():
+    try:
+        with open(UI_FILE, encoding="utf-8") as f:
+            d = json.load(f)
+        sections = [x for x in d.get("sections", []) if x in ALL_SECTIONS]
+        if sections:
+            return {"sections": sections, "areas": d.get("areas"), "hide_diagnostic": bool(d.get("hide_diagnostic")),
+                    "only_problems": bool(d.get("only_problems"))}
+    except Exception:
+        pass
+    return None
+
+
+def save_ui_settings(sections, opts):
+    with open(UI_FILE, "w", encoding="utf-8") as f:
+        json.dump({"sections": sections, "areas": opts.get("areas"), "hide_diagnostic": opts.get("hide_diagnostic", False),
+                   "only_problems": opts.get("only_problems", False)}, f)
+
+
+def _apply_saved():
+    ui = load_ui_settings()
+    if ui:
+        state.update(sections=ui['sections'], areas=ui['areas'], hide_diag=ui['hide_diagnostic'], only_problems=ui['only_problems'])
 
 
 def last_run():
@@ -140,7 +166,12 @@ def mark_run(key):
 
 
 def scheduled_settings():
-    """Abschnitte und Filter für den Monatsbericht aus der Add-on-Konfiguration."""
+    """Abschnitte und Filter für den Monatsbericht: gespeicherte Auswahl der Oberfläche, sonst Add-on-Konfiguration.
+    Rückgabe: (Abschnitte, Optionen, Quelle)."""
+    if OPTIONS.get("schedule_from_ui", True):
+        ui = load_ui_settings()
+        if ui:
+            return ui["sections"], {"hide_diagnostic": ui["hide_diagnostic"], "only_problems": ui["only_problems"], "areas": ui["areas"]}, "Oberfläche"
     sections = [k for k in ALL_SECTIONS if OPTIONS.get(f"schedule_{k}", True)] or list(ALL_SECTIONS)
     wanted = [str(x).strip().lower() for x in (OPTIONS.get("schedule_areas") or []) if str(x).strip()]
     areas = None
@@ -149,7 +180,7 @@ def scheduled_settings():
         if "_none" in wanted or "ohne bereich" in wanted:
             areas.append("_none")
     return sections, {"hide_diagnostic": bool(OPTIONS.get("schedule_hide_diagnostic", True)),
-                      "only_problems": bool(OPTIONS.get("schedule_only_problems", False)), "areas": areas}
+                      "only_problems": bool(OPTIONS.get("schedule_only_problems", False)), "areas": areas}, "Konfiguration"
 
 
 def scheduler_loop():
@@ -161,7 +192,7 @@ def scheduler_loop():
                 hhmm = str(OPTIONS.get("schedule_time", "03:00"))
                 key = now.strftime("%Y-%m")
                 if now.day == day and now.strftime("%H:%M") >= hhmm and last_run() != key:
-                    sections, opts = scheduled_settings()
+                    sections, opts, _ = scheduled_settings()
                     if start_generation(sections, opts, source="automatisch"):
                         mark_run(key)
         except Exception:
@@ -173,13 +204,13 @@ def schedule_info():
     if not OPTIONS.get("schedule_enabled"):
         return "Automatischer Monatsbericht: aus (einschalten unter Konfiguration des Add-ons)."
     last = last_run()
-    sections, o = scheduled_settings()
+    sections, o, source = scheduled_settings()
     labels = dict(ha_doc.SECTIONS)
     inhalt = "alle Abschnitte" if len(sections) == len(ALL_SECTIONS) else ", ".join(labels[x] for x in sections)
     filt = [x for x, on in (("ohne Diagnose-Entitäten", o["hide_diagnostic"]), ("nur fehlende Entitäten", o["only_problems"]),
                             ("ausgewählte Bereiche", o["areas"] is not None)) if on]
     return (f"Automatischer Monatsbericht: jeden Monat am {OPTIONS.get('schedule_day', 1)}. um {OPTIONS.get('schedule_time', '03:00')} Uhr "
-            f"({inhalt}" + (f"; {', '.join(filt)}" if filt else "") + f"), letzte {OPTIONS.get('keep_last', 12)} PDFs werden behalten"
+            f"({inhalt}" + (f"; {', '.join(filt)}" if filt else "") + f"; Einstellungen aus: {source}), letzte {OPTIONS.get('keep_last', 12)} PDFs werden behalten"
             + (f", zuletzt: {last}." if last else "."))
 
 
@@ -219,7 +250,7 @@ def page():
 body{{font-family:system-ui,sans-serif;margin:0;padding:24px;max-width:820px;color:var(--fg);background:var(--bg)}}
 h1{{margin-top:0}} h2{{font-size:15px;margin:18px 0 6px;color:var(--muted)}}
 button{{background:var(--accent);color:#fff;border:0;padding:12px 22px;border-radius:8px;font-size:16px;cursor:pointer}}
-button[disabled]{{opacity:.5;cursor:wait}} table{{border-collapse:collapse;width:100%;margin-top:18px;background:var(--card)}}
+button[disabled]{{opacity:.5;cursor:wait}} button.sec{{background:transparent;color:var(--link);border:1px solid var(--link);margin-left:8px}} table{{border-collapse:collapse;width:100%;margin-top:18px;background:var(--card)}}
 td,th{{border:1px solid var(--line);padding:8px 10px;text-align:left}} .msg{{margin:14px 0;color:var(--muted)}}
 .opts{{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:6px;margin:8px 0}}
 .opt{{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 10px;cursor:pointer;display:block}}
@@ -240,7 +271,8 @@ document.documentElement.style.colorScheme=(0.299*d[0]+0.587*d[1]+0.114*d[2])<12
 <h2>Abschnitte</h2><div class="opts">{boxes}</div>
 <h2>Optionen</h2><div class="opts" style="grid-template-columns:1fr">{extra}</div>
 {area_html}
-<p><button {btn}>PDF erstellen</button></p></form>
+<p><button name="action" value="generate" {btn}>PDF erstellen</button>
+<button name="action" value="save" class="sec" title="Diese Auswahl wird für den automatischen Monatsbericht verwendet">Auswahl für Monatsbericht speichern</button></p></form>
 <div class="msg">{html.escape(state["msg"])}</div>{err}
 <table><tr><th>Datei</th><th>Grösse</th></tr>{rows}</table>
 <p class="msg">{html.escape(schedule_info())}<br>Ablage: Freigabe «share» → Ordner ha_doc</p>
@@ -288,11 +320,20 @@ class Handler(BaseHTTPRequestHandler):
         area_ids = {a for a, _ in get_areas()} | {"_none"}
         areas = [x for x in form.get("areas", []) if x in area_ids] if "areas_present" in form else None
         opts = {"hide_diagnostic": "hide_diag" in form, "only_problems": "only_problems" in form, "areas": areas}
+        action = (form.get("action") or ["generate"])[0]
         if not sections:
             state["msg"] = "Bitte mindestens einen Abschnitt auswählen."
         else:
             state.update(sections=sections, areas=areas, hide_diag=opts["hide_diagnostic"], only_problems=opts["only_problems"])
-            start_generation(sections, opts)
+            if action == "save":
+                try:
+                    save_ui_settings(sections, opts)
+                    state["msg"] = ("Auswahl für den Monatsbericht gespeichert." if OPTIONS.get("schedule_from_ui", True)
+                                    else "Gespeichert, wird aber nicht verwendet: In der Konfiguration ist «Einstellungen der Oberfläche verwenden» aus.")
+                except Exception as e:
+                    state["msg"] = f"Speichern fehlgeschlagen: {e}"
+            else:
+                start_generation(sections, opts)
         self._send(303, "", extra={"Location": "./"})
 
     def log_message(self, fmt, *args):
@@ -300,6 +341,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
+    _apply_saved()
     print(f"HA-Doku-Server auf Port {PORT}", flush=True)
     threading.Thread(target=scheduler_loop, daemon=True).start()
     ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()

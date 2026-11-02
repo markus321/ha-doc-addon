@@ -11,6 +11,9 @@ configuration:
   keep_last:
     name: Anzahl aufbewahrter PDFs
     description: Ältere PDFs werden automatisch gelöscht, es bleiben die neuesten.
+  schedule_from_ui:
+    name: "Einstellungen der Oberfläche verwenden"
+    description: "Der Monatsbericht nutzt die Auswahl, die du in der Oberfläche «HA Doku» mit «Auswahl für Monatsbericht speichern» gespeichert hast. Ist nichts gespeichert oder dieser Schalter aus, gelten die Schalter und Felder unten."
   schedule_uebersicht:
     name: "Abschnitt: Übersicht"
     description: Im Monatsbericht enthalten.

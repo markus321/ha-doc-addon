@@ -11,6 +11,9 @@ configuration:
   keep_last:
     name: Number of PDFs to keep
     description: Older PDFs are deleted automatically, the newest are kept.
+  schedule_from_ui:
+    name: "Use the settings from the web interface"
+    description: "The monthly report uses the selection you saved in the HA Doku page with the button Save selection for monthly report. If nothing is saved or this switch is off, the options below apply."
   schedule_uebersicht:
     name: "Section: Overview"
     description: Included in the monthly report.
