@@ -10,6 +10,7 @@ Abhaengigkeiten:  pip install reportlab requests websocket-client
 Token erstellen:  HA-Profil -> Sicherheit -> Langlebige Zugriffstoken
 """
 import argparse
+import re
 import datetime as dt
 import json
 import sys
@@ -69,7 +70,11 @@ def fetch_all(url, token, supervisor=False):
         "automations": [],
         "scripts": [],
         "scenes": [],
+        "blueprints": {},
     }
+    for dom in ("automation", "script"):
+        bp = c.ws_call("blueprint/list", domain=dom)
+        data["blueprints"][dom] = bp if isinstance(bp, dict) else {}
     for st in data["states"]:
         eid = st["entity_id"]
         dom, obj = eid.split(".", 1)
@@ -150,6 +155,11 @@ def demo_data():
                         "actions": [{"if": [{"condition": "state", "entity_id": "cover.wohnzimmer_storen", "state": "open"}],
                                      "then": [{"action": "cover.set_cover_position", "target": {"entity_id": "cover.wohnzimmer_storen"}, "data": {"position": 20}}],
                                      "else": [{"stop": "Bereits geschlossen"}]}]}},
+            {"entity_id": "automation.s42_storen_buro", "state": "on",
+             "attrs": {"friendly_name": "S42_Storensteuerung Büro", "last_triggered": now, "mode": "parallel"},
+             "config": {"alias": "S42_Storensteuerung Büro", "use_blueprint": {"path": "s42/storensteuerung.yaml",
+                        "input": {"storen": "cover.wohnzimmer_storen", "temp_sensor": "sensor.temp_wohnzimmer", "schwelle": 27, "nachts": True,
+                                  "erweitert": {"puffer": 10}, "fenster": "binary_sensor.fenster_buero"}}}},
             {"entity_id": "automation.nachts", "state": "off",
              "attrs": {"friendly_name": "Gute Nacht", "last_triggered": None},
              "config": {"alias": "Gute Nacht", "mode": "single",
@@ -159,6 +169,12 @@ def demo_data():
                                                  "sequence": [{"action": "notify.mobile_app_markus", "data": {"message": "Gute Nacht!"}}]}],
                                      "default": []}]}},
         ],
+        "blueprints": {"automation": {"s42/storensteuerung.yaml": {"metadata": {
+            "name": "S42 Storensteuerung", "description": "Steuert Storen nach Sonne, Temperatur und Anwesenheit.",
+            "input": {"storen": {"name": "Storen", "selector": {}}, "temp_sensor": {"name": "Temperatursensor", "selector": {}},
+                      "schwelle": {"name": "Hitze-Schwelle", "default": 25, "selector": {}},
+                      "nachts": {"name": "Nachts schliessen", "default": True, "selector": {}},
+                      "erweitert": {"name": "Erweitert", "input": {"puffer": {"name": "Puffer (min)", "default": 10, "selector": {}}}}}}}}},
         "scripts": [
             {"entity_id": "script.alles_aus", "state": "off", "attrs": {"friendly_name": "Alles aus"},
              "config": {"alias": "Alles aus", "description": "Schaltet alle Lichter aus.", "mode": "single",
@@ -589,6 +605,53 @@ def short_actions(actions, n, depth=0):
     return out
 
 
+def fmt_value(v, n):
+    if v is None or v == "" or v == []:
+        return "–"
+    if isinstance(v, bool):
+        return "ja" if v else "nein"
+    if isinstance(v, list):
+        return ", ".join(fmt_value(x, n) for x in v)
+    if isinstance(v, dict):
+        return ", ".join(f"{k}: {fmt_value(x, n)}" for k, x in v.items())
+    if isinstance(v, str) and v in n.names and n.names[v] != v:
+        return f"{n.names[v]} [{v}]"
+    return str(v)
+
+
+def bp_rows(inputs, meta, n):
+    """Blueprint-Eingaben als (Bezeichnung, Wert); Werte gleich dem Standardwert werden weggelassen und gezählt."""
+    defs, sections = {}, set()
+
+    def walk_meta(inp):
+        for k, v in (inp or {}).items():
+            if isinstance(v, dict) and "input" in v and "selector" not in v:
+                sections.add(k)
+                walk_meta(v["input"])
+            else:
+                defs[k] = v if isinstance(v, dict) else {}
+
+    walk_meta(meta.get("input"))
+    flat = {}
+
+    def walk_vals(vals):
+        for k, v in (vals or {}).items():
+            if k in sections and isinstance(v, dict):
+                walk_vals(v)
+            else:
+                flat[k] = v
+
+    walk_vals(inputs)
+    rows, same = [], 0
+    for k, v in flat.items():
+        d = defs.get(k, {})
+        if "default" in d and d["default"] == v:
+            same += 1
+            continue
+        rows.append((d.get("name") or k, fmt_value(v, n)))
+    return rows, same
+
+
 def build_pdf(data, out_path, title="Home Assistant Dokumentation", sections=None):
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import A4
@@ -734,6 +797,26 @@ def build_pdf(data, out_path, title="Home Assistant Dokumentation", sections=Non
                        [55 * mm, 40 * mm, 30 * mm, W - 125 * mm]))
     story.append(PageBreak())
 
+    def blueprint_block(c, kind):
+        bp = c.get("use_blueprint") or {}
+        path = bp.get("path", "?")
+        dom = "script" if kind == "script" else "automation"
+        meta = ((data.get("blueprints") or {}).get(dom, {}).get(path) or {}).get("metadata", {}) or {}
+        rows, same = bp_rows(bp.get("input"), meta, n)
+        out = [Paragraph("<b>Blueprint:</b> " + escape(meta.get("name") or path) +
+                         f"  <font color='#6b7785'>({escape(path)})</font>", BODY)]
+        if meta.get("description"):
+            out.append(P(re.sub(r"\s+", " ", str(meta["description"]))[:400], SMALL))
+        out.append(P("Auslöser, Bedingungen und Aktionen sind im Blueprint festgelegt; hier stehen nur die eingestellten Werte.", SMALL))
+        out.append(Spacer(1, 1.5 * mm))
+        if rows:
+            out.append(table([["Eingabe", "Wert"]] + [list(r) for r in rows], [70 * mm, W - 70 * mm]))
+        else:
+            out.append(P("Alle Eingaben stehen auf dem Standardwert.", SMALL))
+        if same and rows:
+            out.append(P(f"{same} weitere Eingaben stehen auf dem Standardwert (nicht aufgeführt).", SMALL))
+        return out
+
     def schema_table(c):
         """Drei Kästen (Auslöser → Bedingungen → Aktionen) als Übersichtsgrafik."""
         from reportlab.graphics.shapes import Drawing, Line, Polygon
@@ -789,6 +872,14 @@ def build_pdf(data, out_path, title="Home Assistant Dokumentation", sections=Non
                 continue
             if c.get("description"):
                 blk.append(P(c["description"]))
+            if c.get("use_blueprint") and kind in ("automation", "script"):
+                la = it["attrs"].get("last_triggered")
+                if la:
+                    blk.append(P(f"Zuletzt ausgelöst: {la[:16].replace('T', ' ')}", SMALL))
+                blk += blueprint_block(c, kind)
+                story.append(KeepTogether(blk))
+                story.append(Spacer(1, 2 * mm))
+                continue
             lines = []
             if kind == "automation":
                 trig = c.get("triggers", c.get("trigger", []))
@@ -858,7 +949,7 @@ def build_pdf(data, out_path, title="Home Assistant Dokumentation", sections=Non
         for it in coll:
             if not it["config"]:
                 continue
-            for ref in sorted(set(_find_entity_refs(it["config"]))):
+            for ref in sorted(set(_find_entity_refs(it["config"])) | set(_blueprint_refs((it["config"].get("use_blueprint") or {}).get("input")))):
                 if ref not in known and ref != "all":
                     broken.append([it["attrs"].get("friendly_name") or it["entity_id"], ref])
     story.append(Paragraph("Referenzen auf nicht existierende Entitäten", H2))
@@ -867,6 +958,20 @@ def build_pdf(data, out_path, title="Home Assistant Dokumentation", sections=Non
     while main and isinstance(main[-1], PageBreak):
         main.pop()
     doc.multiBuild(main)
+
+
+def _blueprint_refs(obj):
+    """Entitäts-IDs in den Eingaben eines Blueprints (Werte sind dort nicht unter 'entity_id' abgelegt)."""
+    import re as _re
+    pat = _re.compile(r"^(light|switch|sensor|binary_sensor|cover|climate|person|input_boolean|input_number|input_select|input_text|input_datetime|scene|script|automation|media_player|fan|lock|timer|counter|device_tracker|zone|sun|weather|camera|vacuum|button|number|select|calendar|group)\.[a-z0-9_]+$")
+    if isinstance(obj, dict):
+        for v in obj.values():
+            yield from _blueprint_refs(v)
+    elif isinstance(obj, list):
+        for v in obj:
+            yield from _blueprint_refs(v)
+    elif isinstance(obj, str) and pat.match(obj):
+        yield obj
 
 
 def _find_entity_refs(obj):
