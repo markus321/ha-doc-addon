@@ -181,7 +181,7 @@ IGNORE_UNAVAILABLE_DOMAINS = ("scene", "button", "automation", "script", "stt", 
                               "notify", "ai_task", "input_button")
 
 SECTIONS = [("uebersicht", "Übersicht"), ("bereiche", "Bereiche und Geräte"), ("integrationen", "Integrationen"),
-            ("automatisierungen", "Automatisierungen"), ("skripte", "Skripte"), ("szenen", "Szenen"),
+            ("automatisierungen", "Automatisierungen (Text)"), ("schema", "Automatisierungen (Schema)"), ("skripte", "Skripte"), ("szenen", "Szenen"),
             ("helfer", "Helfer"), ("auffaelligkeiten", "Auffälligkeiten")]
 
 WEEKDAYS = {"mon": "Mo", "tue": "Di", "wed": "Mi", "thu": "Do", "fri": "Fr", "sat": "Sa", "sun": "So"}
@@ -275,7 +275,7 @@ def describe_trigger(t, n):
     return f"Trigger «{p}»: " + fmt_data({k: v for k, v in t.items() if k not in ("trigger", "platform", "id", "alias")})
 
 
-def summarize_triggers(triggers, n):
+def summarize_triggers(triggers, n, short=False):
     """Beschreibt Auslöser; Zustandsauslöser derselben Entität (z. B. on/off) werden zu einer Zeile zusammengefasst."""
     items, groups = [], {}
     for t in triggers:
@@ -295,12 +295,13 @@ def summarize_triggers(triggers, n):
     for it in items:
         t, tos = it["t"], it["tos"]
         if not tos or len(tos) == 1:
-            lines.append(describe_trigger(t, n))
+            lines.append(short_trigger(t, n) if short else describe_trigger(t, n))
             continue
+        who = short_name(n, t.get("entity_id")) if short else n.ent(t.get("entity_id"))
         if None in tos:
-            s = f"Wenn {n.ent(t.get('entity_id'))} den Zustand wechselt"
+            s = f"Wenn {who} den Zustand wechselt" if not short else f"{who} wechselt"
         else:
-            s = f"Wenn {n.ent(t.get('entity_id'))} wechselt auf " + " oder ".join(f"«{x}»" for x in tos)
+            s = (f"Wenn {who} wechselt auf " if not short else f"{who} wird ") + " oder ".join(f"«{x}»" for x in tos)
         if t.get("for"):
             s += f" für {dur(t['for'])}"
         lines.append(s)
@@ -342,7 +343,8 @@ def describe_condition(c, n, indent=0):
     if k == "zone":
         return [pad + f"{n.ent(c.get('entity_id'))} ist in Zone {c.get('zone')}"]
     if k == "trigger":
-        return [pad + f"Ausgelöst durch Trigger-ID {c.get('id')}"]
+        ids = c.get("id")
+        return [pad + "Ausgelöst durch Trigger-ID " + (", ".join(ids) if isinstance(ids, list) else str(ids))]
     if k in ("and", "or", "not"):
         label = {"and": "ALLE davon", "or": "EINE davon", "not": "KEINE davon"}[k]
         out = [pad + label + ":"]
@@ -427,6 +429,164 @@ def describe_actions(actions, n, indent=0):
 # --------------------------------------------------------------------------
 # 3. PDF
 # --------------------------------------------------------------------------
+
+
+def short_name(n, v):
+    if v is None:
+        return "?"
+    if isinstance(v, list):
+        return ", ".join(short_name(n, x) for x in v)
+    return n.names.get(v, str(v))
+
+
+def short_target(t, n):
+    if not isinstance(t, dict):
+        return ""
+    parts = []
+    if t.get("entity_id"):
+        parts.append("alle" if t["entity_id"] == "all" else short_name(n, t["entity_id"]))
+    if t.get("area_id"):
+        ids = t["area_id"] if isinstance(t["area_id"], list) else [t["area_id"]]
+        parts.append("Bereich " + ", ".join(n.areas.get(i, i) for i in ids))
+    if t.get("device_id"):
+        parts.append("Gerät")
+    return "; ".join(parts)
+
+
+def short_trigger(t, n):
+    p = t.get("trigger") or t.get("platform") or "?"
+    nm = short_name(n, t.get("entity_id")) if t.get("entity_id") else ""
+    if p == "state":
+        s = nm
+        if t.get("from") is not None and t.get("to") is not None:
+            s += f" von «{t['from']}» auf «{t['to']}»"
+        elif t.get("to") is not None:
+            s += f" wird «{t['to']}»"
+        elif t.get("from") is not None:
+            s += f" verlässt «{t['from']}»"
+        else:
+            s += " wechselt"
+        if t.get("for"):
+            s += f" ({dur(t['for'])})"
+        return s
+    if p == "numeric_state":
+        return nm + (f" > {t['above']}" if t.get("above") is not None else "") + (f" < {t['below']}" if t.get("below") is not None else "")
+    if p == "time":
+        return f"{t.get('at')} Uhr"
+    if p == "time_pattern":
+        return "Zeitmuster " + ", ".join(f"{k}={v}" for k, v in t.items() if k in ("hours", "minutes", "seconds"))
+    if p == "sun":
+        return "Sonnenaufgang" if t.get("event") == "sunrise" else "Sonnenuntergang"
+    if p == "event":
+        return f"Ereignis «{t.get('event_type')}»"
+    if p == "homeassistant":
+        return "HA-Start" if t.get("event") == "start" else "HA-Stopp"
+    if p == "zone":
+        return f"{nm} {'betritt' if t.get('event') == 'enter' else 'verlässt'} {t.get('zone')}"
+    if p == "template":
+        return "Template wird wahr"
+    if p == "webhook":
+        return f"Webhook {t.get('webhook_id')}"
+    if p == "mqtt":
+        return f"MQTT {t.get('topic')}"
+    if p == "calendar":
+        return f"Kalender {nm}: {t.get('event')}"
+    return f"Trigger «{p}»"
+
+
+def short_cond(c, n):
+    if isinstance(c, str):
+        return "Template"
+    k = c.get("condition", "?")
+    nm = short_name(n, c.get("entity_id")) if c.get("entity_id") else ""
+    if k == "state":
+        st = c.get("state")
+        return f"{nm} = " + (" / ".join(f"«{x}»" for x in st) if isinstance(st, list) else f"«{st}»")
+    if k == "numeric_state":
+        return nm + (f" > {c['above']}" if c.get("above") is not None else "") + (f" < {c['below']}" if c.get("below") is not None else "")
+    if k == "time":
+        parts = []
+        if c.get("after"):
+            parts.append(f"nach {c['after']}")
+        if c.get("before"):
+            parts.append(f"vor {c['before']}")
+        if c.get("weekday"):
+            parts.append("/".join(WEEKDAYS.get(w, w) for w in c["weekday"]))
+        return "Zeit: " + ", ".join(parts)
+    if k == "sun":
+        parts = []
+        for key, word in (("after", "nach"), ("before", "vor")):
+            if c.get(key):
+                parts.append(f"{word} {'Sonnenaufgang' if c[key] == 'sunrise' else 'Sonnenuntergang'}")
+        return ", ".join(parts)
+    if k == "template":
+        return "Template"
+    if k == "zone":
+        return f"{nm} in Zone {c.get('zone')}"
+    if k == "trigger":
+        ids = c.get("id")
+        return "Auslöser " + (", ".join(ids) if isinstance(ids, list) else str(ids))
+    if k in ("and", "or", "not"):
+        subs = [short_cond(x, n) for x in c.get("conditions", [])]
+        if k == "not":
+            return "nicht (" + " oder ".join(subs) + ")"
+        return "(" + (" und " if k == "and" else " oder ").join(subs) + ")"
+    return f"Bedingung {k}"
+
+
+def short_actions(actions, n, depth=0):
+    out, pad = [], "  " * depth
+    if isinstance(actions, dict):
+        actions = [actions]
+    for a in actions or []:
+        if not isinstance(a, dict) or a.get("enabled") is False:
+            continue
+        svc = a.get("action") or a.get("service")
+        if svc:
+            tgt = short_target(a.get("target") or ({"entity_id": a["entity_id"]} if a.get("entity_id") else {}), n)
+            out.append(pad + svc + (f" – {tgt}" if tgt else ""))
+        elif "delay" in a:
+            out.append(pad + f"Warte {dur(a['delay'])}")
+        elif "wait_for_trigger" in a:
+            out.append(pad + "Warte auf: " + " / ".join(short_trigger(t, n) for t in a["wait_for_trigger"]))
+        elif "wait_template" in a:
+            out.append(pad + "Warte auf Template")
+        elif "choose" in a:
+            for i, opt in enumerate(a["choose"], 1):
+                out.append(pad + f"Fall {i}: wenn " + " und ".join(short_cond(x, n) for x in opt.get("conditions", [])))
+                out += short_actions(opt.get("sequence"), n, depth + 1)
+            if a.get("default"):
+                out.append(pad + "Sonst:")
+                out += short_actions(a["default"], n, depth + 1)
+        elif "if" in a:
+            out.append(pad + "Wenn " + " und ".join(short_cond(x, n) for x in a["if"]) + ":")
+            out += short_actions(a.get("then"), n, depth + 1)
+            if a.get("else"):
+                out.append(pad + "Sonst:")
+                out += short_actions(a["else"], n, depth + 1)
+        elif "repeat" in a:
+            out.append(pad + "Wiederhole:")
+            out += short_actions(a["repeat"].get("sequence"), n, depth + 1)
+        elif "parallel" in a:
+            out.append(pad + "Parallel:")
+            out += short_actions(a["parallel"], n, depth + 1)
+        elif "sequence" in a:
+            out += short_actions(a["sequence"], n, depth)
+        elif "variables" in a:
+            out.append(pad + "Variablen setzen")
+        elif "event" in a:
+            out.append(pad + f"Ereignis «{a['event']}»")
+        elif "stop" in a:
+            out.append(pad + f"Stopp: {a['stop']}")
+        elif "condition" in a:
+            out.append(pad + "Prüfe: " + short_cond(a, n))
+        elif "scene" in a:
+            out.append(pad + "Szene " + short_name(n, a["scene"]))
+        elif "device_id" in a:
+            out.append(pad + f"Geräteaktion {a.get('type')}")
+        else:
+            out.append(pad + "Weiterer Schritt")
+    return out
 
 
 def build_pdf(data, out_path, title="Home Assistant Dokumentation", sections=None):
@@ -574,8 +734,46 @@ def build_pdf(data, out_path, title="Home Assistant Dokumentation", sections=Non
                        [55 * mm, 40 * mm, 30 * mm, W - 125 * mm]))
     story.append(PageBreak())
 
+    def schema_table(c):
+        """Drei Kästen (Auslöser → Bedingungen → Aktionen) als Übersichtsgrafik."""
+        from reportlab.graphics.shapes import Drawing, Line, Polygon
+        MAXL = 12
+        trig = c.get("triggers", c.get("trigger", [])) or []
+        cond = c.get("conditions", c.get("condition", [])) or []
+        act = c.get("actions", c.get("action", [])) or []
+        trig = [trig] if isinstance(trig, dict) else trig
+        cond = [cond] if isinstance(cond, (dict, str)) else cond
+        cols = [("AUSLÖSER", ["• " + x for x in summarize_triggers(trig, n, short=True)], "#e1f3fc", "#0288d1"),
+                ("BEDINGUNGEN", ["• " + short_cond(x, n) for x in cond] or ["keine"], "#fdf3e0", "#b26a00"),
+                ("AKTIONEN", short_actions(act, n) or ["keine"], "#e6f4ea", "#2e7d32")]
+        SCH = ParagraphStyle("sch", parent=BODY, fontSize=7.5, leading=9.5)
+        cells, styles = [], []
+        for ci, (label, lines, bg, fg) in enumerate(cols):
+            if len(lines) > MAXL:
+                lines = lines[:MAXL] + [f"… +{len(lines) - MAXL} weitere"]
+            fl = [Paragraph(f"<b>{label}</b>", ParagraphStyle("schl", parent=SCH, textColor=colors.HexColor(fg), fontSize=7.5, spaceAfter=2))]
+            for ln in lines:
+                st = ln.lstrip(" ")
+                fl.append(Paragraph(escape(st), ParagraphStyle("schi", parent=SCH, leftIndent=(len(ln) - len(st)) * 3, firstLineIndent=0)))
+            cells.append(fl)
+            col = ci * 2
+            styles += [("BACKGROUND", (col, 0), (col, 0), colors.HexColor(bg)), ("BOX", (col, 0), (col, 0), 0.6, colors.HexColor(fg))]
+
+        def arrow():
+            d = Drawing(7 * mm, 10 * mm)
+            d.add(Line(0.5 * mm, 5 * mm, 4.5 * mm, 5 * mm, strokeColor=colors.grey, strokeWidth=1.2))
+            d.add(Polygon([4 * mm, 3.2 * mm, 6.8 * mm, 5 * mm, 4 * mm, 6.8 * mm], fillColor=colors.grey, strokeColor=colors.grey))
+            return d
+
+        t = Table([[cells[0], arrow(), cells[1], arrow(), cells[2]]], colWidths=[52 * mm, 7 * mm, 52 * mm, 7 * mm, 52 * mm])
+        t.setStyle(TableStyle(styles + [("VALIGN", (0, 0), (-1, -1), "TOP"), ("VALIGN", (1, 0), (1, 0), "MIDDLE"), ("VALIGN", (3, 0), (3, 0), "MIDDLE"),
+                                        ("LEFTPADDING", (1, 0), (1, 0), 0), ("RIGHTPADDING", (1, 0), (1, 0), 0),
+                                        ("LEFTPADDING", (3, 0), (3, 0), 0), ("RIGHTPADDING", (3, 0), (3, 0), 0),
+                                        ("TOPPADDING", (0, 0), (-1, -1), 4), ("BOTTOMPADDING", (0, 0), (-1, -1), 5)]))
+        return t
+
     # Automatisierungen
-    def render_items(heading, items, kind):
+    def render_items(heading, items, kind, text=True, schema=False):
         story.append(Paragraph(heading, H1))
         if not items:
             story.append(P("Keine vorhanden."))
@@ -612,18 +810,26 @@ def build_pdf(data, out_path, title="Home Assistant Dokumentation", sections=Non
                 lines.append(("ABLAUF", describe_actions(c.get("sequence"), n)))
             else:
                 lines.append(("ENTITÄTEN", [f"{n.ent(e)} -> {v.get('state', '') if isinstance(v, dict) else v}" for e, v in (c.get("entities") or {}).items()]))
+            head_n = 4
+            if schema and kind == "automation":
+                blk.append(Spacer(1, 1.5 * mm))
+                blk.append(schema_table(c))
+                blk.append(Spacer(1, 2 * mm))
+                head_n = len(blk)
+            if not text:
+                lines = []
             for lab, ls in lines:
                 blk.append(P(lab, ParagraphStyle("lab", parent=SMALL, textColor=ACC, spaceBefore=3)))
                 for l in ls or ["(leer)"]:
                     stripped = l.lstrip(" ")
                     ind = len(l) - len(stripped)
                     blk.append(Paragraph(escape(stripped), ParagraphStyle("li", parent=LINE, leftIndent=4 + ind * 3.5)))
-            story.append(KeepTogether(blk[:4]))
-            story.extend(blk[4:])
+            story.append(KeepTogether(blk[:head_n]))
+            story.extend(blk[head_n:])
         story.append(PageBreak())
 
-    story = main if on("automatisierungen") else []
-    render_items("Automatisierungen", data["automations"], "automation")
+    story = main if (on("automatisierungen") or on("schema")) else []
+    render_items("Automatisierungen", data["automations"], "automation", text=on("automatisierungen"), schema=on("schema"))
     story = main if on("skripte") else []
     render_items("Skripte", data["scripts"], "script")
     story = main if on("szenen") else []
