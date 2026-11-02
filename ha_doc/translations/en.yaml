@@ -11,3 +11,15 @@ configuration:
   keep_last:
     name: Number of PDFs to keep
     description: Older PDFs are deleted automatically, the newest are kept.
+  schedule_sections:
+    name: Sections in the monthly report
+    description: "Sections to include: uebersicht, bereiche, integrationen, automatisierungen (text), schema (automations as diagram), skripte, szenen, helfer, auffaelligkeiten."
+  schedule_hide_diagnostic:
+    name: Hide diagnostic entities
+    description: Hides configuration and diagnostic entities in the device list (shorter PDF).
+  schedule_only_problems:
+    name: Only entries with missing entities
+    description: List automations, scripts and scenes only if they reference entities that no longer exist.
+  schedule_areas:
+    name: Only these areas
+    description: Area names (e.g. Office, Kitchen). Leave empty for all areas. "Ohne Bereich" (no area) is also possible.

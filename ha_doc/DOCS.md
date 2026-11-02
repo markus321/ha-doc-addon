@@ -12,12 +12,19 @@ Die PDFs liegen in der Freigabe `share`, Ordner `ha_doc`.
 
 ## Konfiguration (Monatsbericht)
 
+Der Monatsbericht kann dieselben Filter nutzen wie die Oberfläche:
+
 | Option | Bedeutung |
 |---|---|
 | schedule_enabled | Monatlichen Bericht automatisch erstellen |
 | schedule_day | Tag im Monat (1–28) |
 | schedule_time | Uhrzeit `HH:MM` (Zeitzone von Home Assistant) |
 | keep_last | Anzahl aufbewahrter PDFs (ältere werden gelöscht) |
+| schedule_sections | Abschnitte im Bericht (Standard: alle) |
+| schedule_hide_diagnostic | Konfigurations-/Diagnose-Entitäten ausblenden (Standard: ja) |
+| schedule_only_problems | Nur Einträge mit fehlenden Entitäten |
+| schedule_areas | Nur diese Bereiche (Namen); leer = alle |
 
-Der automatische Bericht enthält alle Abschnitte und blendet Konfigurations-/Diagnose-Entitäten aus.
+Die Abschnitts-Schlüssel: `uebersicht`, `bereiche`, `integrationen`, `automatisierungen` (Text), `schema` (Automatisierungen als Schema), `skripte`, `szenen`, `helfer`, `auffaelligkeiten`.
+
 Das Add-on muss laufen, schalte dafür **Beim Systemstart starten** ein.

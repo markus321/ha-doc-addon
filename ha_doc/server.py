@@ -139,6 +139,19 @@ def mark_run(key):
         traceback.print_exc()
 
 
+def scheduled_settings():
+    """Abschnitte und Filter für den Monatsbericht aus der Add-on-Konfiguration."""
+    sections = [x for x in (OPTIONS.get("schedule_sections") or []) if x in ALL_SECTIONS] or list(ALL_SECTIONS)
+    wanted = [str(x).strip().lower() for x in (OPTIONS.get("schedule_areas") or []) if str(x).strip()]
+    areas = None
+    if wanted:
+        areas = [aid for aid, name in get_areas() if aid.lower() in wanted or name.lower() in wanted]
+        if "_none" in wanted or "ohne bereich" in wanted:
+            areas.append("_none")
+    return sections, {"hide_diagnostic": bool(OPTIONS.get("schedule_hide_diagnostic", True)),
+                      "only_problems": bool(OPTIONS.get("schedule_only_problems", False)), "areas": areas}
+
+
 def scheduler_loop():
     while True:
         try:
@@ -148,7 +161,8 @@ def scheduler_loop():
                 hhmm = str(OPTIONS.get("schedule_time", "03:00"))
                 key = now.strftime("%Y-%m")
                 if now.day == day and now.strftime("%H:%M") >= hhmm and last_run() != key:
-                    if start_generation(list(ALL_SECTIONS), {"hide_diagnostic": True}, source="automatisch"):
+                    sections, opts = scheduled_settings()
+                    if start_generation(sections, opts, source="automatisch"):
                         mark_run(key)
         except Exception:
             traceback.print_exc()
@@ -159,8 +173,14 @@ def schedule_info():
     if not OPTIONS.get("schedule_enabled"):
         return "Automatischer Monatsbericht: aus (einschalten unter Konfiguration des Add-ons)."
     last = last_run()
-    return (f"Automatischer Monatsbericht: jeden Monat am {OPTIONS.get('schedule_day', 1)}. um {OPTIONS.get('schedule_time', '03:00')} Uhr, "
-            f"es werden die letzten {OPTIONS.get('keep_last', 12)} PDFs behalten" + (f" (zuletzt: {last})." if last else "."))
+    sections, o = scheduled_settings()
+    labels = dict(ha_doc.SECTIONS)
+    inhalt = "alle Abschnitte" if len(sections) == len(ALL_SECTIONS) else ", ".join(labels[x] for x in sections)
+    filt = [x for x, on in (("ohne Diagnose-Entitäten", o["hide_diagnostic"]), ("nur fehlende Entitäten", o["only_problems"]),
+                            ("ausgewählte Bereiche", o["areas"] is not None)) if on]
+    return (f"Automatischer Monatsbericht: jeden Monat am {OPTIONS.get('schedule_day', 1)}. um {OPTIONS.get('schedule_time', '03:00')} Uhr "
+            f"({inhalt}" + (f"; {', '.join(filt)}" if filt else "") + f"), letzte {OPTIONS.get('keep_last', 12)} PDFs werden behalten"
+            + (f", zuletzt: {last}." if last else "."))
 
 
 # --------------------------------------------------------------------------
@@ -194,14 +214,26 @@ def page():
     return f"""<!doctype html><html lang="de"><head><meta charset="utf-8">{refresh}
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>HA Doku</title>
 <style>
-body{{font-family:system-ui,sans-serif;margin:0;padding:24px;max-width:820px;color:#1f2933;background:#fafbfc}}
-h1{{margin-top:0}} h2{{font-size:15px;margin:18px 0 6px;color:#52606d}} button{{background:#03a9f4;color:#fff;border:0;padding:12px 22px;border-radius:8px;font-size:16px;cursor:pointer}}
-button[disabled]{{background:#9bbccc;cursor:wait}} table{{border-collapse:collapse;width:100%;margin-top:18px;background:#fff}}
-td,th{{border:1px solid #e1e5e9;padding:8px 10px;text-align:left}} .msg{{margin:14px 0;color:#52606d}}
+:root{{--bg:#fafbfc;--fg:#1f2933;--card:#fff;--line:#e1e5e9;--muted:#52606d;--accent:#03a9f4;--link:#0277bd;--errbg:#fdecea;color-scheme:light}}
+@media (prefers-color-scheme: dark){{:root{{--bg:#1c1c1c;--fg:#e1e1e1;--card:#2a2a2a;--line:#3c3c3c;--muted:#a8a8a8;--link:#4fc3f7;--errbg:#4a2626;color-scheme:dark}}}}
+body{{font-family:system-ui,sans-serif;margin:0;padding:24px;max-width:820px;color:var(--fg);background:var(--bg)}}
+h1{{margin-top:0}} h2{{font-size:15px;margin:18px 0 6px;color:var(--muted)}}
+button{{background:var(--accent);color:#fff;border:0;padding:12px 22px;border-radius:8px;font-size:16px;cursor:pointer}}
+button[disabled]{{opacity:.5;cursor:wait}} table{{border-collapse:collapse;width:100%;margin-top:18px;background:var(--card)}}
+td,th{{border:1px solid var(--line);padding:8px 10px;text-align:left}} .msg{{margin:14px 0;color:var(--muted)}}
 .opts{{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:6px;margin:8px 0}}
-.opt{{background:#fff;border:1px solid #e1e5e9;border-radius:8px;padding:8px 10px;cursor:pointer;display:block}}
-details{{margin:10px 0}} summary{{cursor:pointer;color:#0277bd}} .err{{background:#fdecea;padding:10px;overflow:auto;font-size:12px}}
-</style></head><body>
+.opt{{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 10px;cursor:pointer;display:block}}
+details{{margin:10px 0}} summary{{cursor:pointer;color:var(--link)}} a{{color:var(--link)}}
+.err{{background:var(--errbg);padding:10px;overflow:auto;font-size:12px}}
+</style>
+<script>
+try{{const cs=getComputedStyle(window.parent.document.documentElement);
+const m={{'--bg':'--primary-background-color','--fg':'--primary-text-color','--card':'--card-background-color','--line':'--divider-color','--muted':'--secondary-text-color','--accent':'--primary-color'}};
+for(const k in m){{const v=cs.getPropertyValue(m[k]).trim();if(v)document.documentElement.style.setProperty(k,v);}}
+const c=getComputedStyle(document.documentElement).getPropertyValue('--bg').trim();
+const t=document.createElement('canvas').getContext('2d');t.fillStyle=c;t.fillRect(0,0,1,1);const d=t.getImageData(0,0,1,1).data;
+document.documentElement.style.colorScheme=(0.299*d[0]+0.587*d[1]+0.114*d[2])<128?'dark':'light';}}catch(e){{}}
+</script></head><body>
 <h1>Home Assistant Dokumentation</h1>
 <p>Erstellt ein PDF deiner Installation. Wähle, was enthalten sein soll.</p>
 <form method="post" action="generate">
