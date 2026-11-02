@@ -26,6 +26,8 @@ Der Monatsbericht nutzt standardmässig die Auswahl der Oberfläche: Wähle in �
 | schedule_only_problems | Nur Einträge mit fehlenden Entitäten |
 | schedule_areas | Nur diese Bereiche (Namen); leer = alle |
 
-Die Abschnitte: `uebersicht`, `bereiche`, `integrationen`, `automatisierungen` (Text), `schema` (Automatisierungen als Schema), `skripte`, `szenen`, `helfer`, `auffaelligkeiten`.
+Die Abschnitte: `uebersicht`, `bereiche`, `integrationen`, `netzwerk`, `automatisierungen` (Text), `schema` (Automatisierungen als Schema), `skripte`, `szenen`, `helfer`, `auffaelligkeiten`.
+
+**Netzwerk:** Der Abschnitt «Netzwerk» zeigt IP, MAC, Hersteller, VLAN und WLAN/LAN der Geräte im Heimnetz und ergänzt bei Geräten die IP-Adresse. Er funktioniert **nur mit der Integration «UniFi Network» (UniFi-Gateway) oder «AVM FRITZ!Box Tools» (Fritz!Box)**. Bei anderen Routern bleibt er leer. Bei UniFi müssen unter «Konfigurieren» die Netzwerk-Clients verfolgt werden.
 
 Das Add-on muss laufen, schalte dafür **Beim Systemstart starten** ein.

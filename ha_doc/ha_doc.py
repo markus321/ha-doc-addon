@@ -10,6 +10,7 @@ Abhaengigkeiten:  pip install reportlab requests websocket-client
 Token erstellen:  HA-Profil -> Sicherheit -> Langlebige Zugriffstoken
 """
 import argparse
+import ipaddress
 import re
 import datetime as dt
 import json
@@ -106,6 +107,16 @@ def demo_data():
         st("timer.waschmaschine", "idle", friendly_name="Timer Waschmaschine"),
         st("person.anna", "home", friendly_name="Anna"),
         st("scene.nacht", "unknown", friendly_name="Nacht"),
+        st("device_tracker.switch_rack", "home", friendly_name="Switch-Rack Switch-Rack", source_type="router", ip="10.0.1.5", mac="1c:6a:1b:38:12:66"),
+        st("device_tracker.ap_wohnzimmer", "home", friendly_name="AP-Wohnzimmer AP-Wohnzimmer", source_type="router", ip="10.0.1.7", mac="58:d6:1f:a5:be:bd"),
+        st("device_tracker.steckdose_drucker", "home", friendly_name="steckdose-drucker Steckdose-Drucker", source_type="router", ip="10.0.80.206",
+           mac="34:98:7a:ec:3d:79", host_name="steckdose-drucker", is_guest=False, vlan=80, oui="Espressif Inc.", essid="IoT", ap_mac="58:d6:1f:a5:be:bd", name="Steckdose-Drucker"),
+        st("device_tracker.imac", "home", friendly_name="iMac iMac", source_type="router", ip="10.0.50.156", mac="d0:11:e5:66:43:aa",
+           host_name="iMac", is_guest=False, vlan=50, oui="Apple, Inc."),
+        st("device_tracker.nas", "not_home", friendly_name="nas nas", source_type="router", ip="10.0.50.20", mac="6c:1f:f7:8d:55:46",
+           host_name="nas.internal", is_guest=False, vlan=50, oui="Ugreen Group Limited", name="nas"),
+        st("device_tracker.unifi_default_bc_24_11_3a_1e_ef", "home", source_type="router", ip="10.0.50.201", mac="bc:24:11:3a:1e:ef",
+           host_name="", is_guest=False, vlan=50, oui="Proxmox Server Solutions GmbH"),
     ]
     return {
         "config": {"location_name": "Zuhause", "version": "2026.10.3", "time_zone": "Europe/Zurich",
@@ -119,6 +130,8 @@ def demo_data():
             {"id": "d1", "name": "IKEA Deckenleuchte", "name_by_user": None, "manufacturer": "IKEA", "model": "TRADFRI Driver", "area_id": "wohnzimmer", "sw_version": "2.3.086"},
             {"id": "d2", "name": "Somfy Storen", "name_by_user": "Storen Wohnzimmer", "manufacturer": "Somfy", "model": "Sonesse 30", "area_id": "wohnzimmer", "sw_version": "1.0"},
             {"id": "d3", "name": "Aqara Bewegung", "name_by_user": None, "manufacturer": "Aqara", "model": "RTCGQ11LM", "area_id": "flur", "sw_version": "3"},
+            {"id": "d5", "name": "Steckdose Drucker", "name_by_user": None, "manufacturer": "ESPHome", "model": "esp32", "area_id": "flur", "sw_version": "2026.9",
+             "connections": [["mac", "34:98:7a:ec:3d:79"]]},
             {"id": "d4", "name": "Hue Spots", "name_by_user": None, "manufacturer": "Signify", "model": "LCG002", "area_id": "kueche", "sw_version": "1.88"},
         ],
         "entities": [
@@ -127,7 +140,9 @@ def demo_data():
             {"entity_id": "binary_sensor.bewegung_flur", "device_id": "d3", "area_id": None, "platform": "zha", "disabled_by": None},
             {"entity_id": "light.kueche_spots", "device_id": "d4", "area_id": None, "platform": "hue", "disabled_by": None},
             {"entity_id": "sensor.alter_sensor", "device_id": None, "area_id": None, "platform": "mqtt", "disabled_by": None},
-        ],
+        ] + [{"entity_id": e, "device_id": None, "area_id": None, "platform": "unifi", "disabled_by": None} for e in (
+            "device_tracker.switch_rack", "device_tracker.ap_wohnzimmer", "device_tracker.steckdose_drucker", "device_tracker.imac",
+            "device_tracker.nas", "device_tracker.unifi_default_bc_24_11_3a_1e_ef")],
         "entries": [
             {"domain": "zha", "title": "Zigbee (ZHA)", "state": "loaded", "source": "user"},
             {"domain": "hue", "title": "Philips Hue", "state": "loaded", "source": "zeroconf"},
@@ -197,6 +212,7 @@ IGNORE_UNAVAILABLE_DOMAINS = ("scene", "button", "automation", "script", "stt", 
                               "notify", "ai_task", "input_button")
 
 SECTIONS = [("uebersicht", "Übersicht"), ("bereiche", "Bereiche und Geräte"), ("integrationen", "Integrationen"),
+            ("netzwerk", "Netzwerk (nur Fritz!Box / UniFi)"),
             ("automatisierungen", "Automatisierungen (Text)"), ("schema", "Automatisierungen (Schema)"), ("skripte", "Skripte"), ("szenen", "Szenen"),
             ("helfer", "Helfer"), ("auffaelligkeiten", "Auffälligkeiten")]
 
@@ -756,6 +772,39 @@ def build_pdf(data, out_path, title="Home Assistant Dokumentation", sections=Non
     areas_sorted = sorted(data["areas"], key=lambda a: (floors.get(a.get("floor_id"), {}).get("level", 99), a["name"]))
     CELLM = ParagraphStyle("CM", parent=CELL, fontName="Courier", fontSize=7, leading=9)
 
+    # Netzwerkdaten (nur Integrationen UniFi und AVM Fritz!Box)
+    NET_PLATFORMS = {"unifi": "UniFi", "fritz": "Fritz!Box"}
+    plat_of = {e["entity_id"]: e.get("platform") for e in data["entities"]}
+    net = []
+    for s in data["states"]:
+        eid = s["entity_id"]
+        a = s.get("attributes") or {}
+        if not eid.startswith("device_tracker.") or plat_of.get(eid) not in NET_PLATFORMS or not a.get("ip"):
+            continue
+        plat = plat_of[eid]
+        fn = (a.get("friendly_name") or "").strip()
+        half = len(fn) // 2
+        if fn and len(fn) % 2 == 1 and fn[:half] == fn[half + 1:]:
+            fn = fn[:half]  # "Name Name" -> "Name"
+        name = a.get("name") or a.get("host_name") or fn or "(unbenannt)"
+        net.append({"name": name, "ip": a["ip"], "mac": (a.get("mac") or "").lower(), "oui": a.get("oui") or "", "vlan": a.get("vlan"),
+                    "essid": a.get("essid"), "ap_mac": (a.get("ap_mac") or "").lower(), "online": s["state"] == "home", "platform": plat,
+                    "infra": plat == "unifi" and "is_guest" not in a and "vlan" not in a})
+    name_by_mac = {x["mac"]: x["name"] for x in net if x["mac"]}
+    ip_by_mac = {x["mac"]: x["ip"] for x in net if x["mac"]}
+
+    def ip_key(x):
+        try:
+            return (0, int(ipaddress.ip_address(x["ip"])))
+        except ValueError:
+            return (1, 0)
+
+    def device_ip(d):
+        for c in d.get("connections") or []:
+            if len(c) == 2 and c[0] == "mac" and str(c[1]).lower() in ip_by_mac:
+                return ip_by_mac[str(c[1]).lower()]
+        return None
+
     def device_table(head_text, sub_text, ents, hidden=0):
         """Ein Kasten pro Gerät: Kopfzeile mit Gerätename, darunter eine Zeile pro Entität (Kopf wiederholt sich auf Folgeseiten)."""
         head = Paragraph("<b>" + escape(head_text) + "</b>" +
@@ -795,6 +844,9 @@ def build_pdf(data, out_path, title="Home Assistant Dokumentation", sections=Non
         story.append(Paragraph(escape(a["name"] + (f"  ({fl})" if fl else "")), H2))
         for d in sorted(devs, key=lambda x: (x.get("name_by_user") or x.get("name") or "").lower()):
             sub = f"{d.get('manufacturer') or ''} {d.get('model') or ''}".strip()
+            ip = device_ip(d)
+            if ip:
+                sub = (sub + "  ·  IP " + ip).strip()
             shown, hid = split_diag(ents_by_dev.get(d["id"], []))
             story.append(device_table(d.get("name_by_user") or d.get("name") or "?", sub, shown, hid))
             story.append(Spacer(1, 2.5 * mm))
@@ -810,6 +862,43 @@ def build_pdf(data, out_path, title="Home Assistant Dokumentation", sections=Non
     story.append(table([["Integration", "Domain", "Status", "Quelle"]] +
                        [[e.get("title"), e.get("domain"), e.get("state"), e.get("source")] for e in sorted(data["entries"], key=lambda x: x.get("domain", ""))],
                        [55 * mm, 40 * mm, 30 * mm, W - 125 * mm]))
+    story.append(PageBreak())
+
+    # Netzwerk
+    story = main if on("netzwerk") else []
+    story.append(Paragraph("Netzwerk", H1))
+    story.append(P("Quelle: Geräte-Tracker der Integrationen UniFi Network und AVM FRITZ!Box Tools. Dieser Abschnitt funktioniert nur mit "
+                   "einem Fritz!Box- oder UniFi-Gateway; andere Router werden nicht ausgewertet.", SMALL))
+    story.append(Spacer(1, 3 * mm))
+    if not net:
+        story.append(P("Keine Netzwerkdaten gefunden. Richte die Integration «UniFi Network» oder «AVM FRITZ!Box Tools» ein und aktiviere das "
+                       "Verfolgen von Netzwerk-Clients."))
+    else:
+        infra = sorted([x for x in net if x["infra"]], key=ip_key)
+        clients = [x for x in net if not x["infra"]]
+        online = sum(1 for x in net if x["online"])
+        story.append(table([["Kennzahl", "Anzahl"], ["Netzwerkgeräte (UniFi)", len(infra)], ["Clients", len(clients)],
+                            ["Online", online], ["Offline", len(net) - online]], [60 * mm, 30 * mm]))
+        story.append(Spacer(1, 3 * mm))
+        cols = [48 * mm, 28 * mm, 33 * mm, 32 * mm, W - 141 * mm]
+        if infra:
+            story.append(Paragraph("Netzwerkgeräte", H2))
+            story.append(table([["Name", "IP", "MAC", "Status", ""]] +
+                               [[x["name"], x["ip"], x["mac"], "online" if x["online"] else "offline", ""] for x in infra], cols))
+        groups = defaultdict(list)
+        for x in clients:
+            groups[x["vlan"] if x["vlan"] is not None else "-"].append(x)
+        for vlan in sorted(groups, key=lambda v: (v == "-", v if isinstance(v, int) else 0)):
+            lst = sorted(groups[vlan], key=ip_key)
+            story.append(Paragraph(f"VLAN {vlan}" if vlan != "-" else "Clients", H2))
+            rows = [["Name", "IP", "MAC", "Hersteller", "Verbindung"]]
+            for x in lst:
+                if x["essid"]:
+                    conn = "WLAN " + x["essid"] + (f" ({name_by_mac[x['ap_mac']]})" if x["ap_mac"] in name_by_mac else "")
+                else:
+                    conn = "LAN" if x["platform"] == "unifi" else ""
+                rows.append([x["name"] + ("" if x["online"] else " (offline)"), x["ip"], x["mac"], x["oui"], conn])
+            story.append(table(rows, cols))
     story.append(PageBreak())
 
     known = {s["entity_id"] for s in data["states"]}

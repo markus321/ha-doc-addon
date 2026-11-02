@@ -1,5 +1,9 @@
 # Änderungen
 
+## 0.3.0
+- Neuer Abschnitt «Netzwerk»: IP, MAC, Hersteller, VLAN und WLAN/LAN der Geräte, gruppiert nach VLAN. Nur mit UniFi-Gateway oder Fritz!Box.
+- Bei Geräten mit passender MAC-Adresse wird die IP in der Gerätetabelle angezeigt.
+
 ## 0.2.3
 - Monatsbericht nutzt die in der Oberfläche gespeicherte Auswahl («Auswahl für Monatsbericht speichern»), inklusive Bereichen. Die Konfiguration dient als Ersatz.
 

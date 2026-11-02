@@ -1,5 +1,5 @@
 name: "HA Doku (PDF)"
-version: "0.2.3"
+version: "0.3.0"
 slug: ha_doc
 description: "Dokumentiert Home Assistant automatisch als PDF"
 url: "https://github.com/markus321/ha-doc-addon"
@@ -25,6 +25,7 @@ options:
   schedule_uebersicht: true
   schedule_bereiche: true
   schedule_integrationen: true
+  schedule_netzwerk: true
   schedule_automatisierungen: true
   schedule_schema: true
   schedule_skripte: true
@@ -43,6 +44,7 @@ schema:
   schedule_uebersicht: bool
   schedule_bereiche: bool
   schedule_integrationen: bool
+  schedule_netzwerk: bool
   schedule_automatisierungen: bool
   schedule_schema: bool
   schedule_skripte: bool

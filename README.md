@@ -1,7 +1,7 @@
 # HA Doku – Home Assistant Add-on
 
 Erstellt per Knopfdruck (oder automatisch jeden Monat) ein **PDF** deiner Home-Assistant-Installation:
-Bereiche, Geräte und Entitäten, Integrationen, Automatisierungen, Skripte, Szenen, Helfer und Auffälligkeiten.
+Bereiche, Geräte und Entitäten, Integrationen, Netzwerk (UniFi/Fritz!Box), Automatisierungen, Skripte, Szenen, Helfer und Auffälligkeiten.
 Alles läuft lokal in deinem Home Assistant, es werden keine Daten nach aussen gesendet.
 
 *Creates a PDF documentation of your Home Assistant setup (areas, devices, automations, scripts, scenes, helpers and issues) – locally, on demand or monthly.*
@@ -46,4 +46,5 @@ Es sendet nichts ins Internet. Das PDF enthält Namen und IDs deiner Geräte und
 
 - Automatisierungen, die in YAML ohne ID definiert sind, sind über die Schnittstelle nicht lesbar und erscheinen mit Hinweis.
 - Vom Blueprint selbst werden Auslöser und Aktionen nicht dargestellt, nur seine Eingaben.
-- Add-ons und Netzwerk-Topologie (z. B. Zigbee) sind noch nicht enthalten.
+- Der Abschnitt «Netzwerk» funktioniert nur mit einem UniFi-Gateway oder einer Fritz!Box (Integrationen «UniFi Network» bzw. «AVM FRITZ!Box Tools»). Eine Port-Zuordnung der Switches ist nicht enthalten.
+- Add-ons und Zigbee-Topologie sind noch nicht enthalten.

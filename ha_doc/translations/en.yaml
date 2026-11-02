@@ -23,6 +23,9 @@ configuration:
   schedule_integrationen:
     name: "Section: Integrations"
     description: Included in the monthly report.
+  schedule_netzwerk:
+    name: "Section: Network"
+    description: Included in the monthly report. Works only with a Fritz!Box or UniFi gateway; otherwise the section stays empty.
   schedule_automatisierungen:
     name: "Section: Automations (text)"
     description: Included in the monthly report.
