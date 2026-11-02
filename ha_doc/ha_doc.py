@@ -495,8 +495,13 @@ def build_pdf(data, out_path, title="Home Assistant Dokumentation"):
         block = [Paragraph(escape(a["name"] + (f"  ({fl})" if fl else "")), H2)]
         rows = [["Gerät", "Hersteller / Modell", "Entitäten"]]
         for d in devs:
-            rows.append([d.get("name_by_user") or d.get("name") or "?", f"{d.get('manufacturer') or ''} {d.get('model') or ''}".strip(),
-                         "\n".join(ents_by_dev.get(d["id"], []))])
+            # Viele Entitäten auf mehrere Zeilen verteilen (sonst passt die Zelle nicht auf eine Seite)
+            ents = ents_by_dev.get(d["id"], []) or [""]
+            for i in range(0, len(ents), 10):
+                first = i == 0
+                rows.append([(d.get("name_by_user") or d.get("name") or "?") if first else "",
+                             f"{d.get('manufacturer') or ''} {d.get('model') or ''}".strip() if first else "",
+                             "\n".join(ents[i:i + 10])])
         for e in loose:
             rows.append(["(ohne Gerät)", "", e])
         block.append(table(rows, [50 * mm, 50 * mm, W - 100 * mm]))
