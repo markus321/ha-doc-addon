@@ -82,21 +82,26 @@ def get_areas():
 
 def cleanup_old():
     keep = int(OPTIONS.get("keep_last", 12) or 12)
-    files = sorted(f for f in os.listdir(OUT_DIR) if f.startswith("ha_dokumentation_") and f.endswith(".pdf"))
-    for f in files[:-keep] if len(files) > keep else []:
-        try:
-            os.remove(os.path.join(OUT_DIR, f))
-        except OSError:
-            pass
+    for ext in (".pdf", ".xlsx"):
+        files = sorted(f for f in os.listdir(OUT_DIR) if f.startswith("ha_dokumentation_") and f.endswith(ext))
+        for f in files[:-keep] if len(files) > keep else []:
+            try:
+                os.remove(os.path.join(OUT_DIR, f))
+            except OSError:
+                pass
 
 
-def generate(sections, options, source="manuell"):
+def generate(sections, options, source="manuell", fmt="pdf"):
     try:
         state.update(msg="Lese Daten aus Home Assistant …", error="")
         data = ha_doc.demo_data() if DEMO else ha_doc.fetch_all(None, os.environ["SUPERVISOR_TOKEN"], supervisor=True)
-        state["msg"] = "Erstelle PDF …"
-        name = dt.datetime.now().strftime("ha_dokumentation_%Y%m%d_%H%M%S.pdf")
-        ha_doc.build_pdf(data, os.path.join(OUT_DIR, name), sections=sections, options=options)
+        state["msg"] = "Erstelle Excel …" if fmt == "xlsx" else "Erstelle PDF …"
+        name = dt.datetime.now().strftime("ha_dokumentation_%Y%m%d_%H%M%S.") + fmt
+        if fmt == "xlsx":
+            import ha_xlsx
+            ha_xlsx.build_xlsx(data, os.path.join(OUT_DIR, name), options=options)
+        else:
+            ha_doc.build_pdf(data, os.path.join(OUT_DIR, name), sections=sections, options=options)
         cleanup_old()
         state["msg"] = f"Fertig ({source}): {name}"
     except Exception:
@@ -106,13 +111,13 @@ def generate(sections, options, source="manuell"):
         state["running"] = False
 
 
-def start_generation(sections, options, source="manuell"):
+def start_generation(sections, options, source="manuell", fmt="pdf"):
     with lock:
         if state["running"]:
             return False
         state["running"] = True
         state["msg"] = "Starte …"
-    threading.Thread(target=generate, args=(sections, options, source), daemon=True).start()
+    threading.Thread(target=generate, args=(sections, options, source, fmt), daemon=True).start()
     return True
 
 
@@ -223,11 +228,11 @@ def checkbox(name, value, label, checked):
 
 
 def page():
-    files = sorted((f for f in os.listdir(OUT_DIR) if f.endswith(".pdf")), reverse=True)
+    files = sorted((f for f in os.listdir(OUT_DIR) if f.endswith((".pdf", ".xlsx"))), reverse=True)
     rows = "".join(
         f'<tr><td><a href="files/{html.escape(f)}" target="_blank">{html.escape(f)}</a></td>'
         f'<td>{os.path.getsize(os.path.join(OUT_DIR, f)) // 1024} KB</td></tr>' for f in files
-    ) or '<tr><td colspan="2">Noch keine PDFs erstellt.</td></tr>'
+    ) or '<tr><td colspan="2">Noch keine Dateien erstellt.</td></tr>'
     refresh = '<meta http-equiv="refresh" content="2">' if state["running"] else ""
     btn = "disabled" if state["running"] else ""
     err = f'<pre class="err">{html.escape(state["error"])}</pre>' if state["error"] else ""
@@ -272,6 +277,7 @@ document.documentElement.style.colorScheme=(0.299*d[0]+0.587*d[1]+0.114*d[2])<12
 <h2>Optionen</h2><div class="opts" style="grid-template-columns:1fr">{extra}</div>
 {area_html}
 <p><button name="action" value="generate" {btn}>PDF erstellen</button>
+<button name="action" value="xlsx" class="sec" {btn} title="Excel-Datei mit Geräten (Entitäten ein-/ausklappbar), Netzwerk und Integrationen. Verwendet Bereiche und Diagnose-Filter.">Excel erstellen</button>
 <button name="action" value="save" class="sec" title="Diese Auswahl wird für den automatischen Monatsbericht verwendet">Auswahl für Monatsbericht speichern</button></p></form>
 <div class="msg">{html.escape(state["msg"])}</div>{err}
 <table><tr><th>Datei</th><th>Grösse</th></tr>{rows}</table>
@@ -305,9 +311,11 @@ class Handler(BaseHTTPRequestHandler):
         if "/files/" in path:
             name = os.path.basename(unquote(path.split("/files/", 1)[1]))
             full = os.path.join(OUT_DIR, name)
-            if name.endswith(".pdf") and os.path.isfile(full):
+            if name.endswith((".pdf", ".xlsx")) and os.path.isfile(full):
+                xl = name.endswith(".xlsx")
                 with open(full, "rb") as f:
-                    return self._send(200, f.read(), "application/pdf", {"Content-Disposition": f'inline; filename="{name}"'})
+                    return self._send(200, f.read(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" if xl else "application/pdf",
+                                      {"Content-Disposition": f'{"attachment" if xl else "inline"}; filename="{name}"'})
             return self.send_error(404)
         self._send(200, page())
 
@@ -333,7 +341,7 @@ class Handler(BaseHTTPRequestHandler):
                 except Exception as e:
                     state["msg"] = f"Speichern fehlgeschlagen: {e}"
             else:
-                start_generation(sections, opts)
+                start_generation(sections, opts, fmt="xlsx" if action == "xlsx" else "pdf")
         self._send(303, "", extra={"Location": "./"})
 
     def log_message(self, fmt, *args):

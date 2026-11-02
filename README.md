@@ -9,6 +9,7 @@ Alles läuft lokal in deinem Home Assistant, es werden keine Daten nach aussen g
 ## Funktionen
 
 - **Auswahl vor dem Erstellen:** Abschnitte, einzelne Bereiche, Diagnose-Entitäten ausblenden, nur Einträge mit fehlenden Entitäten.
+- **Excel-Export** mit aufklappbaren Geräten (Entitäten eingeklappt), Netzwerk und Integrationen.
 - **Ein Kasten pro Gerät** mit Gerätename, Hersteller/Modell und allen Entitäten (mit Namen).
 - **Automatisierungen als Text und als Schema** (Auslöser → Bedingungen → Aktionen), gleichartige Auslöser zusammengefasst.
 - **Blueprints:** Name, Beschreibung und nur die vom Standard abweichenden Eingaben.

@@ -1,5 +1,8 @@
 # Änderungen
 
+## 0.3.1
+- Excel-Export: Geräteliste mit eingeklappten Entitäten (aufklappbar über die Gruppierung am linken Rand), dazu Blätter «Netzwerk» und «Integrationen».
+
 ## 0.3.0
 - Neuer Abschnitt «Netzwerk»: IP, MAC, Hersteller, VLAN und WLAN/LAN der Geräte, gruppiert nach VLAN. Nur mit UniFi-Gateway oder Fritz!Box.
 - Bei Geräten mit passender MAC-Adresse wird die IP in der Gerätetabelle angezeigt.

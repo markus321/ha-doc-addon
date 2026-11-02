@@ -30,4 +30,6 @@ Die Abschnitte: `uebersicht`, `bereiche`, `integrationen`, `netzwerk`, `automati
 
 **Netzwerk:** Der Abschnitt «Netzwerk» zeigt IP, MAC, Hersteller, VLAN und WLAN/LAN der Geräte im Heimnetz und ergänzt bei Geräten die IP-Adresse. Er funktioniert **nur mit der Integration «UniFi Network» (UniFi-Gateway) oder «AVM FRITZ!Box Tools» (Fritz!Box)**. Bei anderen Routern bleibt er leer. Bei UniFi müssen unter «Konfigurieren» die Netzwerk-Clients verfolgt werden.
 
+**Excel:** Der Knopf «Excel erstellen» legt eine .xlsx-Datei an. Im Blatt «Geräte» sind die Entitäten zunächst eingeklappt: mit dem Plus am linken Rand (oder den Ebenen-Knöpfen 1/2 oben links) klappst du sie auf und zu. Bereiche und der Diagnose-Filter der Oberfläche gelten auch hier.
+
 Das Add-on muss laufen, schalte dafür **Beim Systemstart starten** ein.

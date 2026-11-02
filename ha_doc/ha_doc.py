@@ -668,6 +668,28 @@ def bp_rows(inputs, meta, n):
     return rows, same
 
 
+def collect_network(data):
+    """Geräte-Tracker der Integrationen UniFi und AVM Fritz!Box (IP, MAC, VLAN …)."""
+    NET_PLATFORMS = {"unifi": "UniFi", "fritz": "Fritz!Box"}
+    plat_of = {e["entity_id"]: e.get("platform") for e in data["entities"]}
+    net = []
+    for s in data["states"]:
+        eid = s["entity_id"]
+        a = s.get("attributes") or {}
+        if not eid.startswith("device_tracker.") or plat_of.get(eid) not in NET_PLATFORMS or not a.get("ip"):
+            continue
+        plat = plat_of[eid]
+        fn = (a.get("friendly_name") or "").strip()
+        half = len(fn) // 2
+        if fn and len(fn) % 2 == 1 and fn[:half] == fn[half + 1:]:
+            fn = fn[:half]  # "Name Name" -> "Name"
+        name = a.get("name") or a.get("host_name") or fn or "(unbenannt)"
+        net.append({"name": name, "ip": a["ip"], "mac": (a.get("mac") or "").lower(), "oui": a.get("oui") or "", "vlan": a.get("vlan"),
+                    "essid": a.get("essid"), "ap_mac": (a.get("ap_mac") or "").lower(), "online": s["state"] == "home", "platform": plat,
+                    "infra": plat == "unifi" and "is_guest" not in a and "vlan" not in a})
+    return net
+
+
 def build_pdf(data, out_path, title="Home Assistant Dokumentation", sections=None, options=None):
     opts = options or {}
     from reportlab.lib import colors
@@ -772,24 +794,7 @@ def build_pdf(data, out_path, title="Home Assistant Dokumentation", sections=Non
     areas_sorted = sorted(data["areas"], key=lambda a: (floors.get(a.get("floor_id"), {}).get("level", 99), a["name"]))
     CELLM = ParagraphStyle("CM", parent=CELL, fontName="Courier", fontSize=7, leading=9)
 
-    # Netzwerkdaten (nur Integrationen UniFi und AVM Fritz!Box)
-    NET_PLATFORMS = {"unifi": "UniFi", "fritz": "Fritz!Box"}
-    plat_of = {e["entity_id"]: e.get("platform") for e in data["entities"]}
-    net = []
-    for s in data["states"]:
-        eid = s["entity_id"]
-        a = s.get("attributes") or {}
-        if not eid.startswith("device_tracker.") or plat_of.get(eid) not in NET_PLATFORMS or not a.get("ip"):
-            continue
-        plat = plat_of[eid]
-        fn = (a.get("friendly_name") or "").strip()
-        half = len(fn) // 2
-        if fn and len(fn) % 2 == 1 and fn[:half] == fn[half + 1:]:
-            fn = fn[:half]  # "Name Name" -> "Name"
-        name = a.get("name") or a.get("host_name") or fn or "(unbenannt)"
-        net.append({"name": name, "ip": a["ip"], "mac": (a.get("mac") or "").lower(), "oui": a.get("oui") or "", "vlan": a.get("vlan"),
-                    "essid": a.get("essid"), "ap_mac": (a.get("ap_mac") or "").lower(), "online": s["state"] == "home", "platform": plat,
-                    "infra": plat == "unifi" and "is_guest" not in a and "vlan" not in a})
+    net = collect_network(data)
     name_by_mac = {x["mac"]: x["name"] for x in net if x["mac"]}
     ip_by_mac = {x["mac"]: x["ip"] for x in net if x["mac"]}
 
