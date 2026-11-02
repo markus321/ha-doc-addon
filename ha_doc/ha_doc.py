@@ -177,6 +177,13 @@ def demo_data():
 # 2. Klartext-Beschreibung
 # --------------------------------------------------------------------------
 
+IGNORE_UNAVAILABLE_DOMAINS = ("scene", "button", "automation", "script", "stt", "tts", "conversation", "event",
+                              "notify", "ai_task", "input_button")
+
+SECTIONS = [("uebersicht", "Übersicht"), ("bereiche", "Bereiche und Geräte"), ("integrationen", "Integrationen"),
+            ("automatisierungen", "Automatisierungen"), ("skripte", "Skripte"), ("szenen", "Szenen"),
+            ("helfer", "Helfer"), ("auffaelligkeiten", "Auffälligkeiten")]
+
 WEEKDAYS = {"mon": "Mo", "tue": "Di", "wed": "Mi", "thu": "Do", "fri": "Fr", "sat": "Sa", "sun": "So"}
 
 
@@ -266,6 +273,38 @@ def describe_trigger(t, n):
     if p == "calendar":
         return f"Kalender {n.ent(t.get('entity_id'))}: {t.get('event')}"
     return f"Trigger «{p}»: " + fmt_data({k: v for k, v in t.items() if k not in ("trigger", "platform", "id", "alias")})
+
+
+def summarize_triggers(triggers, n):
+    """Beschreibt Auslöser; Zustandsauslöser derselben Entität (z. B. on/off) werden zu einer Zeile zusammengefasst."""
+    items, groups = [], {}
+    for t in triggers:
+        p = t.get("trigger") or t.get("platform")
+        eid = t.get("entity_id")
+        if p == "state" and isinstance(eid, str) and t.get("from") is None:
+            key = (eid, str(t.get("for")))
+            if key in groups:
+                if t.get("to") not in groups[key]["tos"]:
+                    groups[key]["tos"].append(t.get("to"))
+                continue
+            groups[key] = {"t": t, "tos": [t.get("to")]}
+            items.append(groups[key])
+        else:
+            items.append({"t": t, "tos": None})
+    lines = []
+    for it in items:
+        t, tos = it["t"], it["tos"]
+        if not tos or len(tos) == 1:
+            lines.append(describe_trigger(t, n))
+            continue
+        if None in tos:
+            s = f"Wenn {n.ent(t.get('entity_id'))} den Zustand wechselt"
+        else:
+            s = f"Wenn {n.ent(t.get('entity_id'))} wechselt auf " + " oder ".join(f"«{x}»" for x in tos)
+        if t.get("for"):
+            s += f" für {dur(t['for'])}"
+        lines.append(s)
+    return lines
 
 
 def describe_condition(c, n, indent=0):
@@ -390,7 +429,7 @@ def describe_actions(actions, n, indent=0):
 # --------------------------------------------------------------------------
 
 
-def build_pdf(data, out_path, title="Home Assistant Dokumentation"):
+def build_pdf(data, out_path, title="Home Assistant Dokumentation", sections=None):
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
@@ -400,6 +439,7 @@ def build_pdf(data, out_path, title="Home Assistant Dokumentation"):
     from reportlab.platypus.tableofcontents import TableOfContents
 
     n = Namer(data)
+    on = lambda key: sections is None or key in sections
     cfg = data["config"]
     ss = getSampleStyleSheet()
     ACC = colors.HexColor("#03a9f4")
@@ -453,6 +493,8 @@ def build_pdf(data, out_path, title="Home Assistant Dokumentation"):
                      ["Erstellt am", dt.datetime.now().strftime("%d.%m.%Y %H:%M")]], [50 * mm, 80 * mm], header=False),
               PageBreak()]
 
+    main = story  # Hauptliste; Abschnitte, die nicht gewählt sind, landen in einer Wegwerfliste
+
     toc = TableOfContents()
     toc.levelStyles = [ParagraphStyle("t0", fontSize=10, leftIndent=0, spaceBefore=4),
                        ParagraphStyle("t1", fontSize=9, leftIndent=12, textColor=colors.HexColor("#444444"))]
@@ -462,7 +504,8 @@ def build_pdf(data, out_path, title="Home Assistant Dokumentation"):
     doms = defaultdict(int)
     for s in data["states"]:
         doms[s["entity_id"].split(".")[0]] += 1
-    unavailable = [s for s in data["states"] if s["state"] in ("unavailable", "unknown") and not s["entity_id"].startswith(("scene.", "button.", "automation.", "script."))]
+    unavailable = [s for s in data["states"] if s["state"] in ("unavailable", "unknown") and s["entity_id"].split(".")[0] not in IGNORE_UNAVAILABLE_DOMAINS]
+    story = main if on("uebersicht") else []
     story.append(Paragraph("Übersicht", H1))
     story.append(table([["Kennzahl", "Anzahl"], ["Entitäten (aktiv)", len(data["states"])], ["Geräte", len(data["devices"])],
                         ["Bereiche", len(data["areas"])], ["Integrationen", len(data["entries"])],
@@ -484,6 +527,7 @@ def build_pdf(data, out_path, title="Home Assistant Dokumentation"):
             ents_by_dev[e["device_id"]].append(e["entity_id"])
         area_of_ent[e["entity_id"]] = e.get("area_id") or (dev_by_id.get(e.get("device_id"), {}).get("area_id"))
     floors = {f["floor_id"]: f for f in data["floors"]}
+    story = main if on("bereiche") else []
     story.append(Paragraph("Bereiche und Geräte", H1))
     areas_sorted = sorted(data["areas"], key=lambda a: (floors.get(a.get("floor_id"), {}).get("level", 99), a["name"]))
     for a in areas_sorted + [{"area_id": None, "name": "Ohne Bereich", "floor_id": None}]:
@@ -509,6 +553,7 @@ def build_pdf(data, out_path, title="Home Assistant Dokumentation"):
     story.append(PageBreak())
 
     # Integrationen
+    story = main if on("integrationen") else []
     story.append(Paragraph("Integrationen", H1))
     story.append(table([["Integration", "Domain", "Status", "Quelle"]] +
                        [[e.get("title"), e.get("domain"), e.get("state"), e.get("source")] for e in sorted(data["entries"], key=lambda x: x.get("domain", ""))],
@@ -539,7 +584,7 @@ def build_pdf(data, out_path, title="Home Assistant Dokumentation"):
                 act = c.get("actions", c.get("action", []))
                 trig = [trig] if isinstance(trig, dict) else trig
                 cond = [cond] if isinstance(cond, (dict, str)) else cond
-                lines.append(("AUSLÖSER", [describe_trigger(t, n) for t in trig]))
+                lines.append(("AUSLÖSER", summarize_triggers(trig, n)))
                 if cond:
                     cl = []
                     for x in cond:
@@ -563,13 +608,17 @@ def build_pdf(data, out_path, title="Home Assistant Dokumentation"):
             story.extend(blk[4:])
         story.append(PageBreak())
 
+    story = main if on("automatisierungen") else []
     render_items("Automatisierungen", data["automations"], "automation")
+    story = main if on("skripte") else []
     render_items("Skripte", data["scripts"], "script")
+    story = main if on("szenen") else []
     render_items("Szenen", data["scenes"], "scene")
 
     # Helfer
     helper_doms = ("input_boolean", "input_number", "input_select", "input_text", "input_datetime", "input_button", "counter", "timer", "schedule")
     helpers = [s for s in data["states"] if s["entity_id"].split(".")[0] in helper_doms]
+    story = main if on("helfer") else []
     story.append(Paragraph("Helfer", H1))
     story.append(table([["Name", "Entität", "Typ", "Aktueller Wert"]] +
                        [[s["attributes"].get("friendly_name", ""), s["entity_id"], s["entity_id"].split(".")[0], s["state"]] for s in sorted(helpers, key=lambda x: x["entity_id"])],
@@ -577,6 +626,7 @@ def build_pdf(data, out_path, title="Home Assistant Dokumentation"):
     story.append(PageBreak())
 
     # Probleme
+    story = main if on("auffaelligkeiten") else []
     story.append(Paragraph("Auffälligkeiten", H1))
     story.append(Paragraph("Nicht verfügbare Entitäten", H2))
     story.append(table([["Entität", "Name", "Status"]] + [[s["entity_id"], s["attributes"].get("friendly_name", ""), s["state"]] for s in unavailable],
@@ -594,7 +644,9 @@ def build_pdf(data, out_path, title="Home Assistant Dokumentation"):
     story.append(Paragraph("Referenzen auf nicht existierende Entitäten", H2))
     story.append(table([["Verwendet in", "Fehlende Entität"]] + broken, [80 * mm, W - 80 * mm]) if broken else P("Keine."))
 
-    doc.multiBuild(story)
+    while main and isinstance(main[-1], PageBreak):
+        main.pop()
+    doc.multiBuild(main)
 
 
 def _find_entity_refs(obj):
@@ -626,6 +678,7 @@ def main():
     ap.add_argument("--demo", action="store_true", help="Beispieldaten verwenden")
     ap.add_argument("--dump-json", help="Rohdaten zusätzlich als JSON speichern")
     ap.add_argument("-o", "--output", default="ha_dokumentation.pdf")
+    ap.add_argument("--sections", help="Kommagetrennt, z. B. automatisierungen,helfer (Standard: alles). Mögliche Werte: " + ",".join(k for k, _ in SECTIONS))
     a = ap.parse_args()
     if a.demo:
         data = demo_data()
@@ -636,7 +689,7 @@ def main():
     if a.dump_json:
         with open(a.dump_json, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=1)
-    build_pdf(data, a.output)
+    build_pdf(data, a.output, sections=a.sections.split(",") if a.sections else None)
     print(f"Fertig: {a.output}")
 
 

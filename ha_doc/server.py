@@ -6,7 +6,7 @@ import os
 import threading
 import traceback
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import unquote
+from urllib.parse import parse_qs, unquote
 
 import ha_doc
 
@@ -16,17 +16,17 @@ PORT = int(os.environ.get("HA_DOC_PORT", "8099"))
 SUPERVISOR_IP = "172.30.32.2"  # Ingress-Anfragen kommen nur von hier
 os.makedirs(OUT_DIR, exist_ok=True)
 
-state = {"running": False, "msg": "", "error": ""}
+state = {"running": False, "msg": "", "error": "", "sections": [k for k, _ in ha_doc.SECTIONS]}
 lock = threading.Lock()
 
 
-def generate():
+def generate(sections):
     try:
         state.update(msg="Lese Daten aus Home Assistant …", error="")
         data = ha_doc.demo_data() if DEMO else ha_doc.fetch_all(None, os.environ["SUPERVISOR_TOKEN"], supervisor=True)
         state["msg"] = "Erstelle PDF …"
         name = dt.datetime.now().strftime("ha_dokumentation_%Y%m%d_%H%M%S.pdf")
-        ha_doc.build_pdf(data, os.path.join(OUT_DIR, name))
+        ha_doc.build_pdf(data, os.path.join(OUT_DIR, name), sections=sections)
         state["msg"] = f"Fertig: {name}"
     except Exception:
         state["error"] = traceback.format_exc()
@@ -43,6 +43,9 @@ def page():
     ) or '<tr><td colspan="2">Noch keine PDFs erstellt.</td></tr>'
     refresh = '<meta http-equiv="refresh" content="2">' if state["running"] else ""
     btn = "disabled" if state["running"] else ""
+    boxes = "".join(
+        f'<label class="opt"><input type="checkbox" name="sections" value="{k}"{" checked" if k in state["sections"] else ""}> {html.escape(label)}</label>'
+        for k, label in ha_doc.SECTIONS)
     err = f'<pre class="err">{html.escape(state["error"])}</pre>' if state["error"] else ""
     return f"""<!doctype html><html lang="de"><head><meta charset="utf-8">{refresh}
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>HA Doku</title>
@@ -51,11 +54,13 @@ body{{font-family:system-ui,sans-serif;margin:0;padding:24px;max-width:760px;col
 h1{{margin-top:0}} button{{background:#03a9f4;color:#fff;border:0;padding:12px 22px;border-radius:8px;font-size:16px;cursor:pointer}}
 button[disabled]{{background:#9bbccc;cursor:wait}} table{{border-collapse:collapse;width:100%;margin-top:18px;background:#fff}}
 td,th{{border:1px solid #e1e5e9;padding:8px 10px;text-align:left}} .msg{{margin:14px 0;color:#52606d}}
+.opts{{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px;margin:12px 0 18px}}
+.opt{{background:#fff;border:1px solid #e1e5e9;border-radius:8px;padding:8px 10px;cursor:pointer}}
 .err{{background:#fdecea;padding:10px;overflow:auto;font-size:12px}}
 </style></head><body>
 <h1>Home Assistant Dokumentation</h1>
 <p>Erstellt ein PDF mit Bereichen, Geräten, Automatisierungen, Skripten, Szenen und Auffälligkeiten.</p>
-<form method="post" action="generate"><button {btn}>PDF erstellen</button></form>
+<form method="post" action="generate"><div class="opts">{boxes}</div><button {btn}>PDF erstellen</button></form>
 <div class="msg">{html.escape(state["msg"])}</div>{err}
 <table><tr><th>Datei</th><th>Grösse</th></tr>{rows}</table>
 <p class="msg">Ablage: Freigabe «share» → Ordner ha_doc</p>
@@ -97,11 +102,18 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if not self._allowed():
             return
+        length = int(self.headers.get("Content-Length") or 0)
+        form = parse_qs(self.rfile.read(length).decode("utf-8", "replace"))
+        valid = {k for k, _ in ha_doc.SECTIONS}
+        sections = [x for x in form.get("sections", []) if x in valid]
         with lock:
-            if not state["running"]:
+            if not sections:
+                state["msg"] = "Bitte mindestens einen Abschnitt auswählen."
+            elif not state["running"]:
                 state["running"] = True
+                state["sections"] = sections
                 state["msg"] = "Starte …"
-                threading.Thread(target=generate, daemon=True).start()
+                threading.Thread(target=generate, args=(sections,), daemon=True).start()
         self._send(303, "", extra={"Location": "./"})
 
     def log_message(self, fmt, *args):
