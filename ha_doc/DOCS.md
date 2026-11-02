@@ -20,11 +20,11 @@ Der Monatsbericht kann dieselben Filter nutzen wie die Oberfläche:
 | schedule_day | Tag im Monat (1–28) |
 | schedule_time | Uhrzeit `HH:MM` (Zeitzone von Home Assistant) |
 | keep_last | Anzahl aufbewahrter PDFs (ältere werden gelöscht) |
-| schedule_sections | Abschnitte im Bericht (Standard: alle) |
+| schedule_uebersicht … schedule_auffaelligkeiten | Ein Schalter pro Abschnitt im Bericht (Standard: alle an) |
 | schedule_hide_diagnostic | Konfigurations-/Diagnose-Entitäten ausblenden (Standard: ja) |
 | schedule_only_problems | Nur Einträge mit fehlenden Entitäten |
 | schedule_areas | Nur diese Bereiche (Namen); leer = alle |
 
-Die Abschnitts-Schlüssel: `uebersicht`, `bereiche`, `integrationen`, `automatisierungen` (Text), `schema` (Automatisierungen als Schema), `skripte`, `szenen`, `helfer`, `auffaelligkeiten`.
+Die Abschnitte: `uebersicht`, `bereiche`, `integrationen`, `automatisierungen` (Text), `schema` (Automatisierungen als Schema), `skripte`, `szenen`, `helfer`, `auffaelligkeiten`.
 
 Das Add-on muss laufen, schalte dafür **Beim Systemstart starten** ein.

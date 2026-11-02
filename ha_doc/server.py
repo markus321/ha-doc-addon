@@ -141,7 +141,7 @@ def mark_run(key):
 
 def scheduled_settings():
     """Abschnitte und Filter für den Monatsbericht aus der Add-on-Konfiguration."""
-    sections = [x for x in (OPTIONS.get("schedule_sections") or []) if x in ALL_SECTIONS] or list(ALL_SECTIONS)
+    sections = [k for k in ALL_SECTIONS if OPTIONS.get(f"schedule_{k}", True)] or list(ALL_SECTIONS)
     wanted = [str(x).strip().lower() for x in (OPTIONS.get("schedule_areas") or []) if str(x).strip()]
     areas = None
     if wanted:

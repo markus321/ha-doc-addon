@@ -11,9 +11,33 @@ configuration:
   keep_last:
     name: Anzahl aufbewahrter PDFs
     description: Ältere PDFs werden automatisch gelöscht, es bleiben die neuesten.
-  schedule_sections:
-    name: Abschnitte im Monatsbericht
-    description: "Welche Abschnitte enthalten sein sollen: uebersicht, bereiche, integrationen, automatisierungen (Text), schema (Automatisierungen als Schema), skripte, szenen, helfer, auffaelligkeiten."
+  schedule_uebersicht:
+    name: "Abschnitt: Übersicht"
+    description: Im Monatsbericht enthalten.
+  schedule_bereiche:
+    name: "Abschnitt: Bereiche und Geräte"
+    description: Im Monatsbericht enthalten.
+  schedule_integrationen:
+    name: "Abschnitt: Integrationen"
+    description: Im Monatsbericht enthalten.
+  schedule_automatisierungen:
+    name: "Abschnitt: Automatisierungen (Text)"
+    description: Im Monatsbericht enthalten.
+  schedule_schema:
+    name: "Abschnitt: Automatisierungen (Schema)"
+    description: Im Monatsbericht enthalten.
+  schedule_skripte:
+    name: "Abschnitt: Skripte"
+    description: Im Monatsbericht enthalten.
+  schedule_szenen:
+    name: "Abschnitt: Szenen"
+    description: Im Monatsbericht enthalten.
+  schedule_helfer:
+    name: "Abschnitt: Helfer"
+    description: Im Monatsbericht enthalten.
+  schedule_auffaelligkeiten:
+    name: "Abschnitt: Auffälligkeiten"
+    description: Im Monatsbericht enthalten.
   schedule_hide_diagnostic:
     name: Diagnose-Entitäten ausblenden
     description: Blendet Konfigurations- und Diagnose-Entitäten in der Geräteliste aus (kürzeres PDF).
