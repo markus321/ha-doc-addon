@@ -19,7 +19,7 @@ Der Monatsbericht nutzt standardmässig die Auswahl der Oberfläche: Wähle in �
 | schedule_enabled | Monatlichen Bericht automatisch erstellen |
 | schedule_day | Tag im Monat (1–28) |
 | schedule_time | Uhrzeit `HH:MM` (Zeitzone von Home Assistant) |
-| keep_last | Anzahl aufbewahrter PDFs (ältere werden gelöscht) |
+| keep_last | Anzahl aufbewahrter automatischer Berichte (ältere werden gelöscht; manuell erstellte Dateien nie, sie löschst du in der Oberfläche) |
 | schedule_from_ui | Auswahl der Oberfläche für den Monatsbericht verwenden (Standard: an) |
 | schedule_uebersicht … schedule_auffaelligkeiten | Ein Schalter pro Abschnitt im Bericht (Standard: alle an) |
 | schedule_hide_diagnostic | Konfigurations-/Diagnose-Entitäten ausblenden (Standard: ja) |
@@ -31,5 +31,7 @@ Die Abschnitte: `uebersicht`, `bereiche`, `integrationen`, `netzwerk`, `automati
 **Netzwerk:** Der Abschnitt «Netzwerk» zeigt IP, MAC, Hersteller, VLAN und WLAN/LAN der Geräte im Heimnetz und ergänzt bei Geräten die IP-Adresse. Er funktioniert **nur mit der Integration «UniFi Network» (UniFi-Gateway) oder «AVM FRITZ!Box Tools» (Fritz!Box)**. Bei anderen Routern bleibt er leer. Bei UniFi müssen unter «Konfigurieren» die Netzwerk-Clients verfolgt werden.
 
 **Excel:** Der Knopf «Excel erstellen» legt eine .xlsx-Datei an. Im Blatt «Geräte» sind die Entitäten zunächst eingeklappt: mit dem Plus am linken Rand (oder den Ebenen-Knöpfen 1/2 oben links) klappst du sie auf und zu. Bereiche und der Diagnose-Filter der Oberfläche gelten auch hier.
+
+**Änderungen (optional):** Der Abschnitt «Änderungen seit letztem Stand» ist standardmässig aus. Wählst du ihn, vergleicht das PDF den aktuellen Stand mit der letzten gespeicherten Momentaufnahme (JSON im Ordner `snapshots`). Automatische Berichte speichern jedes Mal einen neuen Stand, manuelle Berichte nur mit der Option «diesen Stand als neue Referenz speichern» (der allererste Lauf speichert immer). Der Vergleich zeigt, **was** sich geändert hat, nicht **wer** es geändert hat. Home Assistant speichert das meist nicht.
 
 Das Add-on muss laufen, schalte dafür **Beim Systemstart starten** ein.

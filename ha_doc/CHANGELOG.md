@@ -1,5 +1,13 @@
 # Änderungen
 
+## 0.4.0
+- Optionaler Abschnitt «Änderungen seit letztem Stand»: vergleicht mit der letzten Momentaufnahme und zeigt neue, entfernte und geänderte Bereiche, Geräte, Entitäten, Integrationen, Automatisierungen, Skripte, Szenen und Netzwerk-Adressen (bei Automatisierungen mit Vorher/Nachher der Konfiguration).
+- Momentaufnahmen liegen als JSON im Ordner `snapshots` (die letzten 24 werden behalten). Standardmässig aus.
+
+## 0.3.2
+- Dateien lassen sich in der Oberfläche einzeln löschen.
+- Aufräumen (Anzahl aufbewahrter PDFs) betrifft nur noch automatisch erstellte Berichte (`ha_monatsbericht_…`); manuell erstellte Dateien bleiben, bis du sie löschst.
+
 ## 0.3.1
 - Excel-Export: Geräteliste mit eingeklappten Entitäten (aufklappbar über die Gruppierung am linken Rand), dazu Blätter «Netzwerk» und «Integrationen».
 

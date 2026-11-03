@@ -10,7 +10,7 @@ configuration:
     description: Time as HH:MM (your Home Assistant time zone).
   keep_last:
     name: Number of PDFs to keep
-    description: Older PDFs are deleted automatically, the newest are kept.
+    description: "Applies only to automatically created reports: older ones are deleted, the newest are kept. Files you create manually are deleted by you in the web interface."
   schedule_from_ui:
     name: "Use the settings from the web interface"
     description: "The monthly report uses the selection you saved in the HA Doku page with the button Save selection for monthly report. If nothing is saved or this switch is off, the options below apply."
@@ -44,6 +44,9 @@ configuration:
   schedule_auffaelligkeiten:
     name: "Section: Issues"
     description: Included in the monthly report.
+  schedule_aenderungen:
+    name: "Section: Changes since last snapshot (optional)"
+    description: "Compares with the last saved snapshot and lists new, removed and changed items. Off by default. Automatic reports save a new snapshot each time (JSON in the snapshots folder)."
   schedule_hide_diagnostic:
     name: Hide diagnostic entities
     description: Hides configuration and diagnostic entities in the device list (shorter PDF).

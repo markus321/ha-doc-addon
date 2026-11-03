@@ -107,16 +107,16 @@ def demo_data():
         st("timer.waschmaschine", "idle", friendly_name="Timer Waschmaschine"),
         st("person.anna", "home", friendly_name="Anna"),
         st("scene.nacht", "unknown", friendly_name="Nacht"),
-        st("device_tracker.switch_rack", "home", friendly_name="Switch-Rack Switch-Rack", source_type="router", ip="10.0.1.5", mac="1c:6a:1b:38:12:66"),
-        st("device_tracker.ap_wohnzimmer", "home", friendly_name="AP-Wohnzimmer AP-Wohnzimmer", source_type="router", ip="10.0.1.7", mac="58:d6:1f:a5:be:bd"),
-        st("device_tracker.steckdose_drucker", "home", friendly_name="steckdose-drucker Steckdose-Drucker", source_type="router", ip="10.0.80.206",
-           mac="34:98:7a:ec:3d:79", host_name="steckdose-drucker", is_guest=False, vlan=80, oui="Espressif Inc.", essid="IoT", ap_mac="58:d6:1f:a5:be:bd", name="Steckdose-Drucker"),
-        st("device_tracker.imac", "home", friendly_name="iMac iMac", source_type="router", ip="10.0.50.156", mac="d0:11:e5:66:43:aa",
+        st("device_tracker.switch_rack", "home", friendly_name="Switch-Rack Switch-Rack", source_type="router", ip="192.168.1.5", mac="02:00:00:00:00:01"),
+        st("device_tracker.ap_wohnzimmer", "home", friendly_name="AP-Wohnzimmer AP-Wohnzimmer", source_type="router", ip="192.168.1.7", mac="02:00:00:00:00:02"),
+        st("device_tracker.steckdose_drucker", "home", friendly_name="steckdose-drucker Steckdose-Drucker", source_type="router", ip="192.168.80.20",
+           mac="02:00:00:00:00:03", host_name="steckdose-drucker", is_guest=False, vlan=80, oui="Espressif Inc.", essid="IoT", ap_mac="02:00:00:00:00:02", name="Steckdose-Drucker"),
+        st("device_tracker.imac", "home", friendly_name="iMac iMac", source_type="router", ip="192.168.50.15", mac="02:00:00:00:00:04",
            host_name="iMac", is_guest=False, vlan=50, oui="Apple, Inc."),
-        st("device_tracker.nas", "not_home", friendly_name="nas nas", source_type="router", ip="10.0.50.20", mac="6c:1f:f7:8d:55:46",
-           host_name="nas.internal", is_guest=False, vlan=50, oui="Ugreen Group Limited", name="nas"),
-        st("device_tracker.unifi_default_bc_24_11_3a_1e_ef", "home", source_type="router", ip="10.0.50.201", mac="bc:24:11:3a:1e:ef",
-           host_name="", is_guest=False, vlan=50, oui="Proxmox Server Solutions GmbH"),
+        st("device_tracker.nas", "not_home", friendly_name="nas nas", source_type="router", ip="192.168.50.10", mac="02:00:00:00:00:05",
+           host_name="nas.internal", is_guest=False, vlan=50, oui="Example Vendor", name="nas"),
+        st("device_tracker.unifi_default_02_00_00_00_00_06", "home", source_type="router", ip="192.168.50.101", mac="02:00:00:00:00:06",
+           host_name="", is_guest=False, vlan=50, oui="Example Virtual Machines"),
     ]
     return {
         "config": {"location_name": "Zuhause", "version": "2026.10.3", "time_zone": "Europe/Zurich",
@@ -131,7 +131,7 @@ def demo_data():
             {"id": "d2", "name": "Somfy Storen", "name_by_user": "Storen Wohnzimmer", "manufacturer": "Somfy", "model": "Sonesse 30", "area_id": "wohnzimmer", "sw_version": "1.0"},
             {"id": "d3", "name": "Aqara Bewegung", "name_by_user": None, "manufacturer": "Aqara", "model": "RTCGQ11LM", "area_id": "flur", "sw_version": "3"},
             {"id": "d5", "name": "Steckdose Drucker", "name_by_user": None, "manufacturer": "ESPHome", "model": "esp32", "area_id": "flur", "sw_version": "2026.9",
-             "connections": [["mac", "34:98:7a:ec:3d:79"]]},
+             "connections": [["mac", "02:00:00:00:00:03"]]},
             {"id": "d4", "name": "Hue Spots", "name_by_user": None, "manufacturer": "Signify", "model": "LCG002", "area_id": "kueche", "sw_version": "1.88"},
         ],
         "entities": [
@@ -142,7 +142,7 @@ def demo_data():
             {"entity_id": "sensor.alter_sensor", "device_id": None, "area_id": None, "platform": "mqtt", "disabled_by": None},
         ] + [{"entity_id": e, "device_id": None, "area_id": None, "platform": "unifi", "disabled_by": None} for e in (
             "device_tracker.switch_rack", "device_tracker.ap_wohnzimmer", "device_tracker.steckdose_drucker", "device_tracker.imac",
-            "device_tracker.nas", "device_tracker.unifi_default_bc_24_11_3a_1e_ef")],
+            "device_tracker.nas", "device_tracker.unifi_default_02_00_00_00_00_06")],
         "entries": [
             {"domain": "zha", "title": "Zigbee (ZHA)", "state": "loaded", "source": "user"},
             {"domain": "hue", "title": "Philips Hue", "state": "loaded", "source": "zeroconf"},
@@ -214,7 +214,7 @@ IGNORE_UNAVAILABLE_DOMAINS = ("scene", "button", "automation", "script", "stt", 
 SECTIONS = [("uebersicht", "Übersicht"), ("bereiche", "Bereiche und Geräte"), ("integrationen", "Integrationen"),
             ("netzwerk", "Netzwerk (nur Fritz!Box / UniFi)"),
             ("automatisierungen", "Automatisierungen (Text)"), ("schema", "Automatisierungen (Schema)"), ("skripte", "Skripte"), ("szenen", "Szenen"),
-            ("helfer", "Helfer"), ("auffaelligkeiten", "Auffälligkeiten")]
+            ("helfer", "Helfer"), ("auffaelligkeiten", "Auffälligkeiten"), ("aenderungen", "Änderungen seit letztem Stand (optional)")]
 
 WEEKDAYS = {"mon": "Mo", "tue": "Di", "wed": "Mi", "thu": "Do", "fri": "Fr", "sat": "Sa", "sun": "So"}
 
@@ -1078,6 +1078,60 @@ def build_pdf(data, out_path, title="Home Assistant Dokumentation", sections=Non
                     broken.append([it["attrs"].get("friendly_name") or it["entity_id"], ref])
     story.append(Paragraph("Referenzen auf nicht existierende Entitäten", H2))
     story.append(table([["Verwendet in", "Fehlende Entität"]] + broken, [80 * mm, W - 80 * mm]) if broken else P("Keine."))
+
+    # Änderungen seit letztem Stand (optional, Daten kommen vom Server: opts["changes"])
+    if on("aenderungen") and main and not isinstance(main[-1], PageBreak):
+        main.append(PageBreak())
+    story = main if on("aenderungen") else []
+    story.append(Paragraph("Änderungen seit letztem Stand", H1))
+    ch = opts.get("changes")
+    fmt_t = lambda iso: dt.datetime.fromisoformat(iso).strftime("%d.%m.%Y %H:%M")
+    if not ch:
+        story.append(P("Kein Vergleich verfügbar."))
+    elif ch.get("first"):
+        story.append(P(f"Erster gespeicherter Stand ({fmt_t(ch['cur_time'])}, Home Assistant {ch['cur_version']}). "
+                       "Der Vergleich ist ab dem nächsten Bericht mit dieser Option möglich."))
+    else:
+        story.append(P(f"Vergleich: {fmt_t(ch['prev_time'])} (Home Assistant {ch['prev_version']}) → {fmt_t(ch['cur_time'])} "
+                       f"(Home Assistant {ch['cur_version']})"))
+        story.append(Spacer(1, 3 * mm))
+        if not ch["total"]:
+            story.append(P("Keine Änderungen seit dem letzten Stand."))
+        else:
+            story.append(table([["Kategorie", "Neu", "Entfernt", "Geändert"]] +
+                               [[c["label"], len(c["added"]), len(c["removed"]), len(c["changed"])] for c in ch["cats"]],
+                               [70 * mm, 25 * mm, 25 * mm, 25 * mm]))
+            DIFF = ParagraphStyle("DF", parent=LINE, fontSize=7, leading=8.5)
+
+            def lst(items):
+                shown = items[:200]
+                rows = [[x] for x in shown] + ([[f"… und {len(items) - 200} weitere"]] if len(items) > 200 else [])
+                return table([["Name"]] + rows, [W])
+
+            for c in ch["cats"]:
+                if not c["count"]:
+                    continue
+                story.append(Paragraph(escape(c["label"]), H2))
+                if c["added"]:
+                    story += [Paragraph("Neu", H3), lst(c["added"])]
+                if c["removed"]:
+                    story += [Paragraph("Entfernt", H3), lst(c["removed"])]
+                if c["changed"]:
+                    story.append(Paragraph("Geändert", H3))
+                    for it in c["changed"][:200]:
+                        story.append(Paragraph("<b>" + escape(str(it["title"])) + "</b>", BODY))
+                        if it["fields"]:
+                            story.append(table([["Feld", "Vorher", "Nachher"]] + [[f, o or "–", nw or "–"] for f, o, nw in it["fields"]],
+                                               [35 * mm, (W - 35 * mm) / 2, (W - 35 * mm) / 2]))
+                        if it["diff"]:
+                            lines = it["diff"][:40]
+                            story.append(Paragraph("Konfiguration (– vorher, + nachher):", SMALL))
+                            for ln in lines:
+                                col = "#b00020" if ln.startswith("-") else "#1b7f3b" if ln.startswith("+") else "#6b7785"
+                                story.append(Paragraph(f"<font color='{col}'>" + escape(ln).replace(" ", "&nbsp;") + "</font>", DIFF))
+                            if len(it["diff"]) > 40:
+                                story.append(Paragraph(f"… {len(it['diff']) - 40} weitere Zeilen", SMALL))
+                        story.append(Spacer(1, 2.5 * mm))
 
     while main and isinstance(main[-1], PageBreak):
         main.pop()

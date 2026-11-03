@@ -10,7 +10,7 @@ configuration:
     description: Uhrzeit im Format HH:MM (Zeitzone deines Home Assistant).
   keep_last:
     name: Anzahl aufbewahrter PDFs
-    description: Ältere PDFs werden automatisch gelöscht, es bleiben die neuesten.
+    description: "Gilt nur für automatisch erstellte Berichte: ältere werden gelöscht, die neuesten bleiben. Manuell erstellte Dateien löschst du in der Oberfläche selbst."
   schedule_from_ui:
     name: "Einstellungen der Oberfläche verwenden"
     description: "Der Monatsbericht nutzt die Auswahl, die du in der Oberfläche «HA Doku» mit «Auswahl für Monatsbericht speichern» gespeichert hast. Ist nichts gespeichert oder dieser Schalter aus, gelten die Schalter und Felder unten."
@@ -44,6 +44,9 @@ configuration:
   schedule_auffaelligkeiten:
     name: "Abschnitt: Auffälligkeiten"
     description: Im Monatsbericht enthalten.
+  schedule_aenderungen:
+    name: "Abschnitt: Änderungen seit letztem Stand (optional)"
+    description: "Vergleicht mit dem letzten gespeicherten Stand und listet neue, entfernte und geänderte Einträge. Standardmässig aus. Automatische Berichte speichern jeweils einen neuen Stand (JSON im Ordner snapshots)."
   schedule_hide_diagnostic:
     name: Diagnose-Entitäten ausblenden
     description: Blendet Konfigurations- und Diagnose-Entitäten in der Geräteliste aus (kürzeres PDF).

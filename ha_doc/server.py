@@ -11,10 +11,12 @@ import traceback
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote
 
+import ha_changes
 import ha_doc
 
 OUT_DIR = os.environ.get("HA_DOC_OUT", "/share/ha_doc")
 DATA_DIR = os.environ.get("HA_DOC_DATA", "/data")
+SNAP_DIR = os.path.join(OUT_DIR, "snapshots")
 DEMO = os.environ.get("HA_DOC_DEMO") == "1"
 PORT = int(os.environ.get("HA_DOC_PORT", "8099"))
 SUPERVISOR_IP = "172.30.32.2"  # Ingress-Anfragen kommen nur von hier
@@ -32,8 +34,8 @@ def load_options():
 
 OPTIONS = load_options()
 ALL_SECTIONS = [k for k, _ in ha_doc.SECTIONS]
-state = {"running": False, "msg": "", "error": "", "sections": list(ALL_SECTIONS), "areas": None,
-         "hide_diag": False, "only_problems": False}
+state = {"running": False, "msg": "", "error": "", "sections": [k for k in ALL_SECTIONS if k != "aenderungen"], "areas": None,
+         "hide_diag": False, "only_problems": False, "save_snap": False}
 lock = threading.Lock()
 _areas_cache = {"t": 0.0, "v": []}
 _tz_cache = {}
@@ -80,23 +82,34 @@ def get_areas():
     return _areas_cache["v"]
 
 
+def is_doc_file(f):
+    return f.startswith(("ha_dokumentation_", "ha_monatsbericht_")) and f.endswith((".pdf", ".xlsx"))
+
+
 def cleanup_old():
     keep = int(OPTIONS.get("keep_last", 12) or 12)
-    for ext in (".pdf", ".xlsx"):
-        files = sorted(f for f in os.listdir(OUT_DIR) if f.startswith("ha_dokumentation_") and f.endswith(ext))
-        for f in files[:-keep] if len(files) > keep else []:
-            try:
-                os.remove(os.path.join(OUT_DIR, f))
-            except OSError:
-                pass
+    # Nur automatisch erstellte Berichte werden aufgeräumt; manuell erstellte Dateien bleiben bis zum Löschen.
+    files = sorted(f for f in os.listdir(OUT_DIR) if f.startswith("ha_monatsbericht_") and f.endswith(".pdf"))
+    for f in files[:-keep] if len(files) > keep else []:
+        try:
+            os.remove(os.path.join(OUT_DIR, f))
+        except OSError:
+            pass
 
 
 def generate(sections, options, source="manuell", fmt="pdf"):
     try:
         state.update(msg="Lese Daten aus Home Assistant …", error="")
         data = ha_doc.demo_data() if DEMO else ha_doc.fetch_all(None, os.environ["SUPERVISOR_TOKEN"], supervisor=True)
+        if fmt == "pdf" and "aenderungen" in (sections or []):
+            cur = ha_changes.snapshot(data)
+            prev = ha_changes.load_latest(SNAP_DIR)
+            options = dict(options, changes=ha_changes.compare(prev, cur))
+            if prev is None or source == "automatisch" or options.get("save_snapshot"):
+                ha_changes.save(SNAP_DIR, cur)
         state["msg"] = "Erstelle Excel …" if fmt == "xlsx" else "Erstelle PDF …"
-        name = dt.datetime.now().strftime("ha_dokumentation_%Y%m%d_%H%M%S.") + fmt
+        prefix = "ha_monatsbericht_" if source == "automatisch" else "ha_dokumentation_"
+        name = dt.datetime.now().strftime(prefix + "%Y%m%d_%H%M%S.") + fmt
         if fmt == "xlsx":
             import ha_xlsx
             ha_xlsx.build_xlsx(data, os.path.join(OUT_DIR, name), options=options)
@@ -177,7 +190,7 @@ def scheduled_settings():
         ui = load_ui_settings()
         if ui:
             return ui["sections"], {"hide_diagnostic": ui["hide_diagnostic"], "only_problems": ui["only_problems"], "areas": ui["areas"]}, "Oberfläche"
-    sections = [k for k in ALL_SECTIONS if OPTIONS.get(f"schedule_{k}", True)] or list(ALL_SECTIONS)
+    sections = [k for k in ALL_SECTIONS if OPTIONS.get(f"schedule_{k}", k != "aenderungen")] or list(ALL_SECTIONS)
     wanted = [str(x).strip().lower() for x in (OPTIONS.get("schedule_areas") or []) if str(x).strip()]
     areas = None
     if wanted:
@@ -215,7 +228,7 @@ def schedule_info():
     filt = [x for x, on in (("ohne Diagnose-Entitäten", o["hide_diagnostic"]), ("nur fehlende Entitäten", o["only_problems"]),
                             ("ausgewählte Bereiche", o["areas"] is not None)) if on]
     return (f"Automatischer Monatsbericht: jeden Monat am {OPTIONS.get('schedule_day', 1)}. um {OPTIONS.get('schedule_time', '03:00')} Uhr "
-            f"({inhalt}" + (f"; {', '.join(filt)}" if filt else "") + f"; Einstellungen aus: {source}), letzte {OPTIONS.get('keep_last', 12)} PDFs werden behalten"
+            f"({inhalt}" + (f"; {', '.join(filt)}" if filt else "") + f"; Einstellungen aus: {source}), die letzten {OPTIONS.get('keep_last', 12)} automatischen PDFs werden behalten"
             + (f", zuletzt: {last}." if last else "."))
 
 
@@ -228,11 +241,14 @@ def checkbox(name, value, label, checked):
 
 
 def page():
-    files = sorted((f for f in os.listdir(OUT_DIR) if f.endswith((".pdf", ".xlsx"))), reverse=True)
+    files = sorted((f for f in os.listdir(OUT_DIR) if is_doc_file(f)),
+                   key=lambda f: os.path.getmtime(os.path.join(OUT_DIR, f)), reverse=True)
     rows = "".join(
         f'<tr><td><a href="files/{html.escape(f)}" target="_blank">{html.escape(f)}</a></td>'
-        f'<td>{os.path.getsize(os.path.join(OUT_DIR, f)) // 1024} KB</td></tr>' for f in files
-    ) or '<tr><td colspan="2">Noch keine Dateien erstellt.</td></tr>'
+        f'<td>{os.path.getsize(os.path.join(OUT_DIR, f)) // 1024} KB</td>'
+        f'<td><form method="post" action="delete" onsubmit="return confirm(\'Datei wirklich löschen?\')">'
+        f'<input type="hidden" name="file" value="{html.escape(f)}"><button class="del" title="Löschen">Löschen</button></form></td></tr>' for f in files
+    ) or '<tr><td colspan="3">Noch keine Dateien erstellt.</td></tr>'
     refresh = '<meta http-equiv="refresh" content="2">' if state["running"] else ""
     btn = "disabled" if state["running"] else ""
     err = f'<pre class="err">{html.escape(state["error"])}</pre>' if state["error"] else ""
@@ -245,7 +261,8 @@ def page():
         items += checkbox("areas", "_none", "Ohne Bereich", sel is None or "_none" in sel)
         area_html = (f'<details><summary>Bereiche auswählen ({len(areas) + 1})</summary><input type="hidden" name="areas_present" value="1">'
                      f'<div class="opts">{items}</div></details>')
-    extra = (checkbox("hide_diag", "1", "Konfigurations- und Diagnose-Entitäten ausblenden (kürzere Geräteliste)", state["hide_diag"]) +
+    extra = (checkbox("save_snap", "1", "Änderungsvergleich: diesen Stand als neue Referenz speichern (sonst nur Vergleich; automatische Berichte speichern immer)", state["save_snap"]) +
+             checkbox("hide_diag", "1", "Konfigurations- und Diagnose-Entitäten ausblenden (kürzere Geräteliste)", state["hide_diag"]) +
              checkbox("only_problems", "1", "Automatisierungen, Skripte, Szenen: nur mit fehlenden Entitäten", state["only_problems"]))
     return f"""<!doctype html><html lang="de"><head><meta charset="utf-8">{refresh}
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>HA Doku</title>
@@ -255,7 +272,7 @@ def page():
 body{{font-family:system-ui,sans-serif;margin:0;padding:24px;max-width:820px;color:var(--fg);background:var(--bg)}}
 h1{{margin-top:0}} h2{{font-size:15px;margin:18px 0 6px;color:var(--muted)}}
 button{{background:var(--accent);color:#fff;border:0;padding:12px 22px;border-radius:8px;font-size:16px;cursor:pointer}}
-button[disabled]{{opacity:.5;cursor:wait}} button.sec{{background:transparent;color:var(--link);border:1px solid var(--link);margin-left:8px}} table{{border-collapse:collapse;width:100%;margin-top:18px;background:var(--card)}}
+button[disabled]{{opacity:.5;cursor:wait}} button.del{{background:transparent;color:var(--link);border:1px solid var(--line);padding:4px 10px;font-size:13px}} button.sec{{background:transparent;color:var(--link);border:1px solid var(--link);margin-left:8px}} table{{border-collapse:collapse;width:100%;margin-top:18px;background:var(--card)}}
 td,th{{border:1px solid var(--line);padding:8px 10px;text-align:left}} .msg{{margin:14px 0;color:var(--muted)}}
 .opts{{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:6px;margin:8px 0}}
 .opt{{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 10px;cursor:pointer;display:block}}
@@ -280,7 +297,7 @@ document.documentElement.style.colorScheme=(0.299*d[0]+0.587*d[1]+0.114*d[2])<12
 <button name="action" value="xlsx" class="sec" {btn} title="Excel-Datei mit Geräten (Entitäten ein-/ausklappbar), Netzwerk und Integrationen. Verwendet Bereiche und Diagnose-Filter.">Excel erstellen</button>
 <button name="action" value="save" class="sec" title="Diese Auswahl wird für den automatischen Monatsbericht verwendet">Auswahl für Monatsbericht speichern</button></p></form>
 <div class="msg">{html.escape(state["msg"])}</div>{err}
-<table><tr><th>Datei</th><th>Grösse</th></tr>{rows}</table>
+<table><tr><th>Datei</th><th>Grösse</th><th></th></tr>{rows}</table>
 <p class="msg">{html.escape(schedule_info())}<br>Ablage: Freigabe «share» → Ordner ha_doc</p>
 </body></html>"""
 
@@ -324,15 +341,21 @@ class Handler(BaseHTTPRequestHandler):
             return
         length = int(self.headers.get("Content-Length") or 0)
         form = parse_qs(self.rfile.read(length).decode("utf-8", "replace"))
+        if self.path.split("?")[0].endswith("/delete") or self.path.split("?")[0] == "delete":
+            name = os.path.basename((form.get("file") or [""])[0])
+            if is_doc_file(name) and os.path.isfile(os.path.join(OUT_DIR, name)):
+                os.remove(os.path.join(OUT_DIR, name))
+                state["msg"] = f"Gelöscht: {name}"
+            return self._send(303, "", extra={"Location": "./"})
         sections = [x for x in form.get("sections", []) if x in ALL_SECTIONS]
         area_ids = {a for a, _ in get_areas()} | {"_none"}
         areas = [x for x in form.get("areas", []) if x in area_ids] if "areas_present" in form else None
-        opts = {"hide_diagnostic": "hide_diag" in form, "only_problems": "only_problems" in form, "areas": areas}
+        opts = {"save_snapshot": "save_snap" in form, "hide_diagnostic": "hide_diag" in form, "only_problems": "only_problems" in form, "areas": areas}
         action = (form.get("action") or ["generate"])[0]
         if not sections:
             state["msg"] = "Bitte mindestens einen Abschnitt auswählen."
         else:
-            state.update(sections=sections, areas=areas, hide_diag=opts["hide_diagnostic"], only_problems=opts["only_problems"])
+            state.update(sections=sections, areas=areas, save_snap=opts["save_snapshot"], hide_diag=opts["hide_diagnostic"], only_problems=opts["only_problems"])
             if action == "save":
                 try:
                     save_ui_settings(sections, opts)
