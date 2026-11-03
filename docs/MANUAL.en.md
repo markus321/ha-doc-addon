@@ -1,0 +1,158 @@
+---
+title: "HA Doku – Manual"
+subtitle: "Automatically document Home Assistant (PDF and Excel) – Version 0.4"
+lang: en
+---
+
+# 1. What is HA Doku?
+
+HA Doku is a Home Assistant add-on. It reads your installation and creates a clear **PDF documentation** and, if you like, an **Excel file**. It runs locally, is read-only and does not change your configuration. It sends no data to the internet.
+
+Depending on your selection, the PDF contains:
+
+| Section | Content |
+|---|---|
+| Overview | Key figures (entities, devices, areas, integrations …) and entities by domain |
+| Areas and devices | One box per device in each area with manufacturer, model, IP (if known) and all entities |
+| Integrations | All configured integrations with status and source |
+| Network | IP, MAC, vendor, VLAN and Wi-Fi/LAN of devices on your home network (UniFi or Fritz!Box only, see chapter 7) |
+| Automations (text) | Triggers, conditions and actions in plain language; blueprint automations with their inputs |
+| Automations (diagram) | Trigger → conditions → actions as a diagram |
+| Scripts, scenes, helpers | Key details for each |
+| Issues | Unavailable entities and references to entities that no longer exist |
+| Changes since last snapshot | Optional: comparison with the last saved snapshot (chapter 8) |
+
+The section names in the add-on's web interface are shown in German.
+
+![Devices in the PDF](geraete.png)
+
+# 2. Requirements
+
+* Home Assistant OS or Supervised (add-ons must be available).
+* Architecture amd64 or aarch64.
+* For the "Network" section: the "UniFi Network" integration (UniFi gateway) or "AVM FRITZ!Box Tools" (Fritz!Box).
+
+# 3. Installation
+
+1. Open **Settings › Add-ons › Add-on Store › ⋮ › Repositories** and add this address:  
+   `https://github.com/markus321/ha-doc-addon`
+2. Install the add-on **HA Doku (PDF)**.
+3. Enable **"Start on boot"** and **"Show in sidebar"**, then start the add-on.
+4. Open **HA Doku** in the sidebar.
+
+Updates appear in the add-on store: **⋮ › Check for updates**, then **Update**. The check can take up to a minute; an "Unknown error" during that time is usually just a UI timeout. Reload the page after a minute.
+
+# 4. Using the web interface
+
+The interface follows Home Assistant's light/dark theme.
+
+**Sections.** Tick what should go into the PDF. "Änderungen seit letztem Stand" (changes) is off by default.
+
+**Options.**
+
+* *Hide configuration and diagnostic entities* shortens the device list considerably. Each device then shows "+ n configuration/diagnostic entities hidden".
+* *Automations, scripts, scenes: only with missing entities* lists only entries that reference entities that no longer exist. Handy for cleaning up.
+* *Change comparison: save this state as the new reference* (only relevant with the changes section, chapter 8).
+
+**Areas.** Under "Bereiche auswählen" you can limit the documentation to individual areas (including "Ohne Bereich", i.e. no area).
+
+**Buttons.**
+
+| Button | Effect |
+|---|---|
+| PDF erstellen (create PDF) | Creates the PDF with the current selection |
+| Excel erstellen (create Excel) | Creates the Excel file (chapter 6); areas and the diagnostic filter apply |
+| Auswahl für Monatsbericht speichern (save selection for monthly report) | Saves the current selection for the automatic report (chapter 5) |
+
+**File list.** All created files are listed at the bottom. Click a name to open the PDF or download the Excel file. **Löschen** (delete, with confirmation) removes single files. The files are stored in the `share` folder under `ha_doc`, so you can also reach them via Samba or the file editor.
+
+While you create a file yourself, the page refreshes automatically. For an automatic report, reload the page yourself.
+
+# 5. Monthly report
+
+Under the add-on's **Configuration**:
+
+| Option | Meaning |
+|---|---|
+| Create a monthly report | Switches the automation on (default: off) |
+| Day of month | 1 to 28 |
+| Time | HH:MM, in your Home Assistant time zone |
+| Number of PDFs to keep | How many **automatic** reports are kept (1 to 100) |
+| Use the settings from the web interface | Default: on. The report uses the selection saved with "save selection for monthly report" |
+| Section: … (switches) | Apply if nothing is saved or the web-interface setting is off |
+| Hide diagnostic entities, Only entries with missing entities, Only these areas | Filters, also used as fallback |
+
+**Important:**
+
+* **Restart the add-on** after saving the configuration. It reads the configuration only at startup.
+* The add-on must be running (**"Start on boot"**). If a run was missed, the add-on catches up at the next start.
+* Below the file list you can see when the next report is created and what it contains.
+* Automatic reports are named `ha_monatsbericht_…`, manually created files `ha_dokumentation_…`. Only automatic reports are cleaned up according to "Number of PDFs to keep". Manual files stay until you delete them.
+
+# 6. Excel export
+
+"Excel erstellen" creates an `.xlsx` file with three sheets:
+
+* **Geräte (devices):** One row per area, below it the devices with manufacturer/model, IP and number of entities. The **entities are collapsed**. Use the **plus sign at the left edge** next to a device to expand them and the minus sign to collapse them again. The level buttons **1** and **2** at the top left collapse or expand everything at once. Each entity shows name, entity ID and current state.
+* **Netzwerk (network):** IP, MAC, vendor, VLAN, connection and status with a filter (only with UniFi or Fritz!Box).
+* **Integrationen (integrations):** Integration, domain, status, source.
+
+The monthly report creates only the PDF, not an Excel file.
+
+# 7. Network (UniFi and Fritz!Box only)
+
+The "Network" section uses the device trackers of the **UniFi Network** and **AVM FRITZ!Box Tools** integrations. **It works only with a UniFi gateway or a Fritz!Box.** With other routers it stays empty, and the PDF says so.
+
+![Network in the PDF](netzwerk.png)
+
+* **Network devices** (gateway, switches, access points) are listed first with IP, MAC and status.
+* **Clients** are grouped by VLAN with IP, MAC, vendor and connection (LAN, or Wi-Fi with SSID and access point).
+* In the device table, a device shows its **IP** if its MAC address matches a tracker.
+
+**Setting up UniFi:** Add the "UniFi Network" integration (host, local user, password; a Ubiquiti cloud account does not work). Under **Configure**, enable tracking of network clients. Without it, clients are missing.
+
+Limits: the integration does not provide the switch port assignment. Clients without a hostname appear as "(unbenannt)" (unnamed) with MAC and vendor.
+
+# 8. Change comparison (optional)
+
+The section **"Änderungen seit letztem Stand (optional)"** is off by default. It adds the question: *what changed since last time?*
+
+![Changes in the PDF](aenderungen.png)
+
+**How it works:**
+
+* The add-on stores a **snapshot** (JSON) in the folder `ha_doc/snapshots` of the `share` folder. The last 24 are kept.
+* The PDF compares the current state with the last snapshot: new, removed and changed areas, devices, entities (registry), integrations, automations, scripts, scenes and network addresses. For automations, scripts and scenes the configuration change is shown as before/after (red: removed, green: new).
+* **Automatic reports** always save a new snapshot, so the monthly report compares with the previous month.
+* **Manual reports** only compare. They change the reference only if you tick **"save this state as the new reference"**. This way test runs don't move the reference.
+* The **first** run always saves a snapshot and shows "Erster gespeicherter Stand" (first saved state). Comparison starts with the next run.
+
+**Limits:** The comparison shows **what** changed, not **who** changed it; Home Assistant usually does not record that. Between two snapshots it only sees the result, not every intermediate step. Labels and the areas of individual entities are not included yet. This is a change log, not a tamper-proof audit trail: snapshots are protected neither against deletion nor modification.
+
+# 9. Troubleshooting
+
+| Problem | Cause and solution |
+|---|---|
+| The monthly report was not created | Is the automation switched on? **Restart the add-on** after saving the configuration. The add-on must be running. The add-on log shows errors. |
+| "Unknown error" when checking for updates | Usually a UI timeout while the store reloads. Wait a minute, reload the page, then update. |
+| "No changelog found" on update | Harmless. The file `CHANGELOG.md` is missing from the add-on folder or named differently. |
+| Network section empty | The UniFi or Fritz!Box integration is missing, or client tracking is off (chapter 7). |
+| An automation appears with a note and no content | YAML automations **without an `id`** can't be read through the API. Add an `id:` in the YAML and they become readable. |
+| Error message when creating the PDF | Copy the text shown under the button and report it as an issue (without personal data). |
+| A file won't open | Reload the page. The add-on can only be reached through the Home Assistant sidebar (ingress). |
+
+# 10. Privacy
+
+The add-on reads the configuration through Home Assistant's internal interface (Supervisor) and writes files to `share/ha_doc`. It sends nothing to the internet. **The PDF contains names and IDs of your devices, IP and MAC addresses, automations and rooms.** Share it with care and redact personal details before showing it publicly.
+
+# 11. Known limitations
+
+* YAML automations without an `id` can't be read (chapter 9).
+* For a blueprint itself, triggers and actions are not shown, only its inputs.
+* The "Network" section works only with a UniFi gateway or a Fritz!Box; switch port assignments are missing.
+* Add-ons and Zigbee topology are not included (yet).
+* Excel is created manually only, not in the monthly report.
+
+# 12. License and support
+
+MIT license, see `LICENSE`. The add-on is provided "as is". Please report bugs and wishes as an issue at `https://github.com/markus321/ha-doc-addon/issues`, without attaching files containing personal data.

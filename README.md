@@ -6,6 +6,11 @@ Alles läuft lokal in deinem Home Assistant, es werden keine Daten nach aussen g
 
 *Creates a PDF documentation of your Home Assistant setup (areas, devices, automations, scripts, scenes, helpers and issues) – locally, on demand or monthly.*
 
+## Handbuch
+
+* Deutsch: [HANDBUCH.de.md](docs/HANDBUCH.de.md) ([PDF](docs/HANDBUCH.de.pdf))
+* English: [MANUAL.en.md](docs/MANUAL.en.md) ([PDF](docs/MANUAL.en.pdf))
+
 ## Funktionen
 
 - **Auswahl vor dem Erstellen:** Abschnitte, einzelne Bereiche, Diagnose-Entitäten ausblenden, nur Einträge mit fehlenden Entitäten.
