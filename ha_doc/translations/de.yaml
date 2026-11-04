@@ -13,7 +13,7 @@ configuration:
     description: "Gilt nur für automatisch erstellte Berichte: ältere werden gelöscht, die neuesten bleiben. Manuell erstellte Dateien löschst du in der Oberfläche selbst."
   schedule_from_ui:
     name: "Einstellungen der Oberfläche verwenden"
-    description: "Der Monatsbericht nutzt die Auswahl, die du in der Oberfläche «HA Doku» mit «Auswahl für Monatsbericht speichern» gespeichert hast. Ist nichts gespeichert oder dieser Schalter aus, gelten die Schalter und Felder unten."
+    description: "Der Monatsbericht nutzt die Auswahl, die du in der Oberfläche «layvo Doku» mit «Auswahl für Monatsbericht speichern» gespeichert hast. Ist nichts gespeichert oder dieser Schalter aus, gelten die Schalter und Felder unten."
   schedule_uebersicht:
     name: "Abschnitt: Übersicht"
     description: Im Monatsbericht enthalten.

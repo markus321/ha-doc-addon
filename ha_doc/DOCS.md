@@ -1,6 +1,6 @@
-# HA Doku (PDF)
+# layvo Doku
 
-Seitenleiste → **HA Doku** → Abschnitte und Optionen wählen → **PDF erstellen**.
+Seitenleiste → **layvo Doku** → Abschnitte und Optionen wählen → **PDF erstellen**.
 Die PDFs liegen in der Freigabe `share`, Ordner `ha_doc`.
 
 ## Optionen im PDF
@@ -12,7 +12,7 @@ Die PDFs liegen in der Freigabe `share`, Ordner `ha_doc`.
 
 ## Konfiguration (Monatsbericht)
 
-Der Monatsbericht nutzt standardmässig die Auswahl der Oberfläche: Wähle in «HA Doku» Abschnitte und Filter und klicke auf **Auswahl für Monatsbericht speichern**. Ist nichts gespeichert oder `schedule_from_ui` aus, gelten diese Optionen:
+Der Monatsbericht nutzt standardmässig die Auswahl der Oberfläche: Wähle in «layvo Doku» Abschnitte und Filter und klicke auf **Auswahl für Monatsbericht speichern**. Ist nichts gespeichert oder `schedule_from_ui` aus, gelten diese Optionen:
 
 | Option | Bedeutung |
 |---|---|

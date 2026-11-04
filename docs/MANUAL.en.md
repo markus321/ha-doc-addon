@@ -1,12 +1,12 @@
 ---
-title: "HA Doku – Manual"
+title: "layvo Doku – Manual"
 subtitle: "Automatically document Home Assistant (PDF and Excel) – Version 0.5"
 lang: en
 ---
 
-# 1. What is HA Doku?
+# 1. What is layvo Doku?
 
-HA Doku is a Home Assistant add-on. It reads your installation and creates a clear **PDF documentation** and, if you like, an **Excel file**. It runs locally, is read-only and does not change your configuration. It sends no data to the internet.
+layvo Doku is a Home Assistant add-on. It reads your installation and creates a clear **PDF documentation** and, if you like, an **Excel file**. It runs locally, is read-only and does not change your configuration. It sends no data to the internet.
 
 Depending on your selection, the PDF contains:
 
@@ -37,9 +37,9 @@ The section names in the add-on's web interface are shown in German.
 
 1. Open **Settings › Add-ons › Add-on Store › ⋮ › Repositories** and add this address:  
    `https://github.com/markus321/ha-doc-addon`
-2. Install the add-on **HA Doku (PDF)**.
+2. Install the add-on **layvo Doku**.
 3. Enable **"Start on boot"** and **"Show in sidebar"**, then start the add-on.
-4. Open **HA Doku** in the sidebar.
+4. Open **layvo Doku** in the sidebar.
 
 Updates appear in the add-on store: **⋮ › Check for updates**, then **Update**. The check can take up to a minute; an "Unknown error" during that time is usually just a UI timeout. Reload the page after a minute.
 

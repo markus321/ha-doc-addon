@@ -719,13 +719,42 @@ def build_pdf(data, out_path, title="Home Assistant Dokumentation", sections=Non
             if isinstance(fl, Paragraph) and fl.style.name in ("H1", "H2"):
                 self.notify("TOCEntry", (0 if fl.style.name == "H1" else 1, fl.getPlainText(), self.page))
 
+    import os
+    from reportlab.pdfgen import canvas as rl_canvas
+    logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logo_pdf.png")
+    has_logo = os.path.isfile(logo_path)
+    logo_ratio = 1165 / 399  # Breite / Höhe von logo_pdf.png
+
     def footer(canvas, doc):
         canvas.saveState()
+        x = 20 * mm
+        if has_logo:
+            canvas.drawImage(logo_path, x, 8.2 * mm, width=7 * logo_ratio * mm / 1.0 * 0.62, height=7 * 0.62 * mm, mask="auto")
+            x += 7 * logo_ratio * 0.62 * mm + 3 * mm
         canvas.setFont("Helvetica", 8)
         canvas.setFillColor(colors.grey)
-        canvas.drawString(20 * mm, 10 * mm, f"{title} – {cfg.get('location_name', '')}")
-        canvas.drawRightString(190 * mm, 10 * mm, f"Seite {doc.page}")
+        canvas.drawString(x, 10 * mm, f"{title} – {cfg.get('location_name', '')}")
         canvas.restoreState()
+
+    class NumberedCanvas(rl_canvas.Canvas):
+        """Zeichnet «Seite n / N» (Gesamtzahl erst am Schluss bekannt)."""
+        def __init__(self, *a, **kw):
+            super().__init__(*a, **kw)
+            self._saved = []
+
+        def showPage(self):
+            self._saved.append(dict(self.__dict__))
+            self._startPage()
+
+        def save(self):
+            total = len(self._saved)
+            for st in self._saved:
+                self.__dict__.update(st)
+                self.setFont("Helvetica", 8)
+                self.setFillColor(colors.grey)
+                self.drawRightString(190 * mm, 10 * mm, f"Seite {self._pageNumber} / {total}")
+                super().showPage()
+            super().save()
 
     doc = Doc(out_path, pagesize=A4, leftMargin=20 * mm, rightMargin=20 * mm, topMargin=18 * mm, bottomMargin=20 * mm,
               title=title, author="ha_doc")
@@ -746,6 +775,11 @@ def build_pdf(data, out_path, title="Home Assistant Dokumentation", sections=Non
 
     W = doc.width
     story = []
+
+    def cover_table(rows, widths, header=True):
+        t = table(rows, widths, header)
+        t.hAlign = "LEFT"
+        return t
     notes = opts.get("notes") or {}
     NOTE = lambda kind, key: (notes.get(f"{kind}:{key}") or "").strip()
     NOTE_FILL = colors.HexColor("#fff8dc")
@@ -758,11 +792,15 @@ def build_pdf(data, out_path, title="Home Assistant Dokumentation", sections=Non
         t.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, -1), NOTE_FILL), ("BOX", (0, 0), (-1, -1), 0.25, colors.HexColor("#e6d9a0"))]))
         return t
 
-    # Deckblatt
-    story += [Spacer(1, 70 * mm), Paragraph(escape(title), ParagraphStyle("T", parent=H1, fontSize=30, leading=36)),
+    # Deckblatt: Logo oben links (falls logo_pdf.png neben dem Skript liegt)
+    from reportlab.platypus import Image as RLImage
+    logo = []
+    if has_logo:
+        logo = [RLImage(logo_path, width=52 * mm, height=52 * mm / logo_ratio, hAlign="LEFT"), Spacer(1, 28 * mm)]
+    story += ([] if logo else [Spacer(1, 70 * mm)]) + logo + [Paragraph(escape(title), ParagraphStyle("T", parent=H1, fontSize=30, leading=36)),
               Spacer(1, 6 * mm), P(cfg.get("location_name", "Home Assistant"), ParagraphStyle("T2", parent=BODY, fontSize=16, leading=20, textColor=ACC)),
               Spacer(1, 25 * mm),
-              table([["Home Assistant Version", cfg.get("version", "?")], ["Zeitzone", cfg.get("time_zone", "?")],
+              cover_table([["Home Assistant Version", cfg.get("version", "?")], ["Zeitzone", cfg.get("time_zone", "?")],
                      ["Erstellt am", dt.datetime.now().strftime("%d.%m.%Y %H:%M")]], [50 * mm, 80 * mm], header=False)]
     if (opts.get("general_note") or "").strip():
         story += [Spacer(1, 10 * mm), note_box(opts["general_note"].strip())]
@@ -1166,7 +1204,7 @@ def build_pdf(data, out_path, title="Home Assistant Dokumentation", sections=Non
 
     while main and isinstance(main[-1], PageBreak):
         main.pop()
-    doc.multiBuild(main)
+    doc.multiBuild(main, canvasmaker=NumberedCanvas)
 
 
 def _blueprint_refs(obj):

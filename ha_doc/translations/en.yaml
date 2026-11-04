@@ -13,7 +13,7 @@ configuration:
     description: "Applies only to automatically created reports: older ones are deleted, the newest are kept. Files you create manually are deleted by you in the web interface."
   schedule_from_ui:
     name: "Use the settings from the web interface"
-    description: "The monthly report uses the selection you saved in the HA Doku page with the button Save selection for monthly report. If nothing is saved or this switch is off, the options below apply."
+    description: "The monthly report uses the selection you saved in the layvo Doku page with the button Save selection for monthly report. If nothing is saved or this switch is off, the options below apply."
   schedule_uebersicht:
     name: "Section: Overview"
     description: Included in the monthly report.

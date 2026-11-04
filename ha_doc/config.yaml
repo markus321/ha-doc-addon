@@ -1,5 +1,5 @@
-name: "HA Doku (PDF)"
-version: "0.5.0"
+name: "layvo Doku"
+version: "0.5.3"
 slug: ha_doc
 description: "Dokumentiert Home Assistant automatisch als PDF"
 url: "https://github.com/markus321/ha-doc-addon"
@@ -13,7 +13,7 @@ homeassistant_api: true
 ingress: true
 ingress_port: 8099
 panel_icon: mdi:file-document-outline
-panel_title: HA Doku
+panel_title: layvo Doku
 map:
   - share:rw
 options:

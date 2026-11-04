@@ -1,5 +1,14 @@
 # Änderungen
 
+## 0.5.3
+- Logo im Stil von layvo Studio (transparent, oben links auf dem Deckblatt, klein in der Fusszeile) und «Seite n / N».
+
+## 0.5.2
+- Das layvo-Logo steht auf dem Deckblatt der erzeugten PDFs.
+
+## 0.5.1
+- Neuer Name «layvo Doku» mit neuem Symbol und Logo.
+
 ## 0.5.0
 - Eigene Bemerkungen: Knopf «Bemerkungen erfassen» öffnet eine Seite, auf der zu Bereichen, Geräten, Entitäten, Integrationen, Netzwerk-Clients, Automatisierungen, Skripten und Szenen (sowie allgemein) Text erfasst werden kann. Die Bemerkungen erscheinen im PDF, in der Excel-Datei (Spalte «Bemerkung») und im Änderungsvergleich.
 - Die Bemerkungen liegen in `share/ha_doc/notes.json` und bleiben bei einer Neuinstallation erhalten.

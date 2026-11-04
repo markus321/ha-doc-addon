@@ -280,7 +280,7 @@ def page():
              checkbox("hide_diag", "1", "Konfigurations- und Diagnose-Entitäten ausblenden (kürzere Geräteliste)", state["hide_diag"]) +
              checkbox("only_problems", "1", "Automatisierungen, Skripte, Szenen: nur mit fehlenden Entitäten", state["only_problems"]))
     return f"""<!doctype html><html lang="de"><head><meta charset="utf-8">{refresh}
-<meta name="viewport" content="width=device-width,initial-scale=1"><title>HA Doku</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>layvo Doku</title>
 <style>
 :root{{--bg:#fafbfc;--fg:#1f2933;--card:#fff;--line:#e1e5e9;--muted:#52606d;--accent:#03a9f4;--link:#0277bd;--errbg:#fdecea;color-scheme:light}}
 @media (prefers-color-scheme: dark){{:root{{--bg:#1c1c1c;--fg:#e1e1e1;--card:#2a2a2a;--line:#3c3c3c;--muted:#a8a8a8;--link:#4fc3f7;--errbg:#4a2626;color-scheme:dark}}}}

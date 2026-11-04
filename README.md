@@ -1,4 +1,4 @@
-# HA Doku – Home Assistant Add-on
+# layvo Doku – Home Assistant Add-on
 
 Erstellt per Knopfdruck (oder automatisch jeden Monat) ein **PDF** deiner Home-Assistant-Installation:
 Bereiche, Geräte und Entitäten, Integrationen, Netzwerk (UniFi/Fritz!Box), Automatisierungen, Skripte, Szenen, Helfer und Auffälligkeiten.
@@ -33,8 +33,8 @@ Alles läuft lokal in deinem Home Assistant, es werden keine Daten nach aussen g
 
 1. In Home Assistant: **Einstellungen › Add-ons › Add-on-Store › ⋮ › Repositories** und diese Adresse hinzufügen:
    `https://github.com/markus321/ha-doc-addon`
-2. **HA Doku (PDF)** installieren und starten, «In Seitenleiste anzeigen» aktivieren.
-3. In der Seitenleiste **HA Doku** öffnen, Abschnitte wählen und **PDF erstellen**.
+2. **layvo Doku** installieren und starten, «In Seitenleiste anzeigen» aktivieren.
+3. In der Seitenleiste **layvo Doku** öffnen, Abschnitte wählen und **PDF erstellen**.
 
 Die PDFs liegen in der Freigabe `share` im Ordner `ha_doc`.
 
