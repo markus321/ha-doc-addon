@@ -1,5 +1,9 @@
 # Änderungen
 
+## 0.5.0
+- Eigene Bemerkungen: Knopf «Bemerkungen erfassen» öffnet eine Seite, auf der zu Bereichen, Geräten, Entitäten, Integrationen, Netzwerk-Clients, Automatisierungen, Skripten und Szenen (sowie allgemein) Text erfasst werden kann. Die Bemerkungen erscheinen im PDF, in der Excel-Datei (Spalte «Bemerkung») und im Änderungsvergleich.
+- Die Bemerkungen liegen in `share/ha_doc/notes.json` und bleiben bei einer Neuinstallation erhalten.
+
 ## 0.4.0
 - Optionaler Abschnitt «Änderungen seit letztem Stand»: vergleicht mit der letzten Momentaufnahme und zeigt neue, entfernte und geänderte Bereiche, Geräte, Entitäten, Integrationen, Automatisierungen, Skripte, Szenen und Netzwerk-Adressen (bei Automatisierungen mit Vorher/Nachher der Konfiguration).
 - Momentaufnahmen liegen als JSON im Ordner `snapshots` (die letzten 24 werden behalten). Standardmässig aus.

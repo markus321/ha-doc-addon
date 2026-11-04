@@ -1,6 +1,6 @@
 ---
 title: "HA Doku – Manual"
-subtitle: "Automatically document Home Assistant (PDF and Excel) – Version 0.4"
+subtitle: "Automatically document Home Assistant (PDF and Excel) – Version 0.5"
 lang: en
 ---
 
@@ -20,6 +20,7 @@ Depending on your selection, the PDF contains:
 | Automations (diagram) | Trigger → conditions → actions as a diagram |
 | Scripts, scenes, helpers | Key details for each |
 | Issues | Unavailable entities and references to entities that no longer exist |
+| Your own notes | Optional, on areas, devices, entities and more (chapter 9) |
 | Changes since last snapshot | Optional: comparison with the last saved snapshot (chapter 8) |
 
 The section names in the add-on's web interface are shown in German.
@@ -62,6 +63,7 @@ The interface follows Home Assistant's light/dark theme.
 |---|---|
 | PDF erstellen (create PDF) | Creates the PDF with the current selection |
 | Excel erstellen (create Excel) | Creates the Excel file (chapter 6); areas and the diagnostic filter apply |
+| Bemerkungen erfassen (add notes) | Opens the page for your own notes (chapter 9) |
 | Auswahl für Monatsbericht speichern (save selection for monthly report) | Saves the current selection for the automatic report (chapter 5) |
 
 **File list.** All created files are listed at the bottom. Click a name to open the PDF or download the Excel file. **Löschen** (delete, with confirmation) removes single files. The files are stored in the `share` folder under `ha_doc`, so you can also reach them via Samba or the file editor.
@@ -127,9 +129,34 @@ The section **"Änderungen seit letztem Stand (optional)"** is off by default. I
 * **Manual reports** only compare. They change the reference only if you tick **"save this state as the new reference"**. This way test runs don't move the reference.
 * The **first** run always saves a snapshot and shows "Erster gespeicherter Stand" (first saved state). Comparison starts with the next run.
 
-**Limits:** The comparison shows **what** changed, not **who** changed it; Home Assistant usually does not record that. Between two snapshots it only sees the result, not every intermediate step. Labels and the areas of individual entities are not included yet. This is a change log, not a tamper-proof audit trail: snapshots are protected neither against deletion nor modification.
+**Limits:** The comparison shows **what** changed, not **who** changed it; Home Assistant usually does not record that. Between two snapshots it only sees the result, not every intermediate step. Labels and the areas of individual entities are not included yet. Your own notes (chapter 9) are compared as the category "Bemerkungen". This is a change log, not a tamper-proof audit trail: snapshots are protected neither against deletion nor modification.
 
-# 9. Troubleshooting
+# 9. Your own notes
+
+With **"Bemerkungen erfassen"** (next to "Excel erstellen") you open a separate page where you can add your own text to your installation, for example "Motor replaced in 2024, warranty until 2029" or "Dimmer flickers".
+
+![Notes in the PDF](bemerkungen.png)
+
+**Using it:**
+
+* The page is built like the Excel file: areas and devices are collapsed. Use the **plus sign** on the left to expand an area or a device. Inside there is a field for a note on the device and one field per entity.
+* You can add notes to: **areas, devices, entities, integrations, network clients, automations, scripts and scenes**. There is also a **general note** that appears on the PDF cover page.
+* The **search field** at the top filters by device, entity or name and expands the matches.
+* A **●** after the name shows that a note already exists.
+* **Speichern** (save) stores all fields. An empty field deletes the note.
+* Configuration and diagnostic entities are hidden. The link at the top of the page shows them.
+
+**Where the notes appear:**
+
+* in the **PDF**, highlighted in yellow below the area, device, entity or entry (as a "Bemerkung" column for integrations and network),
+* in the **Excel file** in the "Bemerkung" column (sheets Geräte, Netzwerk and Integrationen),
+* in the **change comparison** (chapter 8) as a separate category "Bemerkungen".
+
+Notes on automations, scripts and scenes appear in the PDF but not in the Excel file (it has no sheet for them).
+
+**Storage:** The notes are stored in the file `notes.json` in the `ha_doc` folder of the `share` folder. They survive uninstalling the add-on and are easy to back up. Notes are tied to the IDs of the area, device and entity. If a device is deleted and re-created in Home Assistant it gets a new ID, and the note has to be entered again.
+
+# 10. Troubleshooting
 
 | Problem | Cause and solution |
 |---|---|
@@ -141,18 +168,18 @@ The section **"Änderungen seit letztem Stand (optional)"** is off by default. I
 | Error message when creating the PDF | Copy the text shown under the button and report it as an issue (without personal data). |
 | A file won't open | Reload the page. The add-on can only be reached through the Home Assistant sidebar (ingress). |
 
-# 10. Privacy
+# 11. Privacy
 
-The add-on reads the configuration through Home Assistant's internal interface (Supervisor) and writes files to `share/ha_doc`. It sends nothing to the internet. **The PDF contains names and IDs of your devices, IP and MAC addresses, automations and rooms.** Share it with care and redact personal details before showing it publicly.
+The add-on reads the configuration through Home Assistant's internal interface (Supervisor) and writes files to `share/ha_doc`. It sends nothing to the internet. **The PDF contains names and IDs of your devices, IP and MAC addresses, automations, rooms and your own notes.** Share it with care and redact personal details before showing it publicly.
 
-# 11. Known limitations
+# 12. Known limitations
 
-* YAML automations without an `id` can't be read (chapter 9).
+* YAML automations without an `id` can't be read (chapter 10).
 * For a blueprint itself, triggers and actions are not shown, only its inputs.
 * The "Network" section works only with a UniFi gateway or a Fritz!Box; switch port assignments are missing.
 * Add-ons and Zigbee topology are not included (yet).
 * Excel is created manually only, not in the monthly report.
 
-# 12. License and support
+# 13. License and support
 
 MIT license, see `LICENSE`. The add-on is provided "as is". Please report bugs and wishes as an issue at `https://github.com/markus321/ha-doc-addon/issues`, without attaching files containing personal data.

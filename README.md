@@ -15,6 +15,7 @@ Alles läuft lokal in deinem Home Assistant, es werden keine Daten nach aussen g
 
 - **Auswahl vor dem Erstellen:** Abschnitte, einzelne Bereiche, Diagnose-Entitäten ausblenden, nur Einträge mit fehlenden Entitäten.
 - **Änderungsvergleich (optional):** was ist seit dem letzten Stand neu, entfernt oder geändert?
+- **Eigene Bemerkungen** zu Bereichen, Geräten, Entitäten, Automatisierungen u. a. (im PDF, in Excel und im Änderungsvergleich).
 - **Excel-Export** mit aufklappbaren Geräten (Entitäten eingeklappt), Netzwerk und Integrationen.
 - **Ein Kasten pro Gerät** mit Gerätename, Hersteller/Modell und allen Entitäten (mit Namen).
 - **Automatisierungen als Text und als Schema** (Auslöser → Bedingungen → Aktionen), gleichartige Auslöser zusammengefasst.

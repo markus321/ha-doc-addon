@@ -11,7 +11,7 @@ MAX_LIST = 200
 MAX_DIFF_LINES = 40
 
 
-def snapshot(data):
+def snapshot(data, notes=None):
     areas = {a["area_id"]: a["name"] for a in data["areas"]}
     devices = {d["id"]: {"Name": d.get("name_by_user") or d.get("name") or "?", "Hersteller": d.get("manufacturer") or "",
                          "Modell": d.get("model") or "", "Bereich": areas.get(d.get("area_id"), ""), "Firmware": d.get("sw_version") or ""}
@@ -30,11 +30,12 @@ def snapshot(data):
            for x in ha_doc.collect_network(data)}
     return {"time": dt.datetime.now().isoformat(timespec="seconds"), "version": data["config"].get("version", "?"),
             "areas": {k: {"Name": v} for k, v in areas.items()}, "devices": devices, "entities": entities, "entries": entries,
-            "automations": items(data["automations"]), "scripts": items(data["scripts"]), "scenes": items(data["scenes"]), "network": net}
+            "automations": items(data["automations"]), "scripts": items(data["scripts"]), "scenes": items(data["scenes"]), "network": net,
+            "notes": {k: {"Name": (notes.get("labels") or {}).get(k, k), "Bemerkung": v} for k, v in (notes or {}).get("items", {}).items() if v}}
 
 
 CATEGORIES = [("areas", "Bereiche"), ("devices", "Geräte"), ("entities", "Entitäten (Registry)"), ("entries", "Integrationen"),
-              ("automations", "Automatisierungen"), ("scripts", "Skripte"), ("scenes", "Szenen"), ("network", "Netzwerk (IP/MAC)")]
+              ("automations", "Automatisierungen"), ("scripts", "Skripte"), ("scenes", "Szenen"), ("network", "Netzwerk (IP/MAC)"), ("notes", "Bemerkungen")]
 
 
 def _title(key, v):

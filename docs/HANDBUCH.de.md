@@ -1,6 +1,6 @@
 ---
 title: "HA Doku – Handbuch"
-subtitle: "Home Assistant automatisch dokumentieren (PDF und Excel) – Version 0.4"
+subtitle: "Home Assistant automatisch dokumentieren (PDF und Excel) – Version 0.5"
 lang: de
 ---
 
@@ -20,6 +20,7 @@ Das PDF enthält je nach Auswahl:
 | Automatisierungen (Schema) | Auslöser → Bedingungen → Aktionen als Schema |
 | Skripte, Szenen, Helfer | jeweils mit den wichtigsten Angaben |
 | Auffälligkeiten | nicht verfügbare Entitäten und Verweise auf Entitäten, die es nicht mehr gibt |
+| Eigene Bemerkungen | optional zu Bereichen, Geräten, Entitäten u. a. (Kapitel 9) |
 | Änderungen seit letztem Stand | optional: Vergleich mit der letzten gespeicherten Momentaufnahme (Kapitel 8) |
 
 ![Geräte im PDF](geraete.png)
@@ -60,6 +61,7 @@ Die Oberfläche folgt dem Hell-/Dunkelmodus von Home Assistant.
 |---|---|
 | PDF erstellen | erzeugt das PDF mit der aktuellen Auswahl |
 | Excel erstellen | erzeugt die Excel-Datei (Kapitel 6); es gelten die Bereiche und der Diagnose-Filter |
+| Bemerkungen erfassen | öffnet die Seite für eigene Bemerkungen (Kapitel 9) |
 | Auswahl für Monatsbericht speichern | speichert die aktuelle Auswahl für den automatischen Bericht (Kapitel 5) |
 
 **Dateiliste.** Alle erstellten Dateien stehen unten in der Liste. Ein Klick auf den Namen öffnet das PDF bzw. lädt die Excel-Datei herunter. Mit **Löschen** (mit Rückfrage) entfernst du einzelne Dateien. Die Dateien liegen in der Freigabe `share` im Ordner `ha_doc`, du erreichst sie also auch über Samba oder den Dateieditor.
@@ -125,9 +127,34 @@ Der Abschnitt **«Änderungen seit letztem Stand (optional)»** ist standardmäs
 * **Manuelle Berichte** vergleichen nur. Sie verändern die Referenz nur, wenn du **«diesen Stand als neue Referenz speichern»** anhakst. So verschieben Testläufe die Referenz nicht.
 * Der **erste** Lauf speichert immer einen Stand und zeigt «Erster gespeicherter Stand». Der Vergleich beginnt beim nächsten Lauf.
 
-**Grenzen:** Der Vergleich zeigt **was** sich geändert hat, aber nicht **wer** es geändert hat; das speichert Home Assistant meist nicht. Zwischen zwei Ständen sieht er nur das Ergebnis, nicht jeden einzelnen Zwischenschritt. Labels und die Bereiche einzelner Entitäten sind noch nicht enthalten. Es ist ein Änderungsprotokoll, kein revisionssicherer Audit-Trail: Die Momentaufnahmen sind weder gegen Löschen noch gegen Veränderung geschützt.
+**Grenzen:** Der Vergleich zeigt **was** sich geändert hat, aber nicht **wer** es geändert hat; das speichert Home Assistant meist nicht. Zwischen zwei Ständen sieht er nur das Ergebnis, nicht jeden einzelnen Zwischenschritt. Labels und die Bereiche einzelner Entitäten sind noch nicht enthalten. Eigene Bemerkungen (Kapitel 9) werden als Kategorie «Bemerkungen» mitverglichen. Es ist ein Änderungsprotokoll, kein revisionssicherer Audit-Trail: Die Momentaufnahmen sind weder gegen Löschen noch gegen Veränderung geschützt.
 
-# 9. Fehlersuche
+# 9. Eigene Bemerkungen
+
+Mit **«Bemerkungen erfassen»** (neben «Excel erstellen») öffnest du eine eigene Seite. Dort kannst du zu deiner Installation eigene Texte erfassen, zum Beispiel «Motor 2024 ersetzt, Garantie bis 2029» oder «Dimmer flackert».
+
+![Bemerkungen im PDF](bemerkungen.png)
+
+**Bedienung:**
+
+* Die Seite ist wie die Excel-Datei aufgebaut: Bereiche und Geräte sind eingeklappt. Mit dem **Plus** links klappst du einen Bereich oder ein Gerät auf. Darin steht ein Feld für die Bemerkung zum Gerät, darunter pro Entität ein Feld.
+* Du kannst Bemerkungen erfassen zu: **Bereichen, Geräten, Entitäten, Integrationen, Netzwerk-Clients, Automatisierungen, Skripten und Szenen**. Zusätzlich gibt es eine **allgemeine Bemerkung**, die auf dem Deckblatt des PDFs steht.
+* Das **Suchfeld** oben filtert nach Gerät, Entität oder Name und klappt die Treffer auf.
+* Ein **●** hinter dem Namen zeigt, dass schon eine Bemerkung vorhanden ist.
+* Mit **Speichern** werden alle Felder übernommen. Ein leeres Feld löscht die Bemerkung.
+* Konfigurations- und Diagnose-Entitäten sind ausgeblendet. Der Link oben auf der Seite blendet sie ein.
+
+**Wo die Bemerkungen erscheinen:**
+
+* im **PDF** gelb hinterlegt unter dem Bereich, dem Gerät, der Entität oder dem Eintrag (bei Integrationen und Netzwerk als Spalte «Bemerkung»),
+* in der **Excel-Datei** in der Spalte «Bemerkung» (Blätter Geräte, Netzwerk und Integrationen),
+* im **Änderungsvergleich** (Kapitel 8) als eigene Kategorie «Bemerkungen».
+
+Bemerkungen zu Automatisierungen, Skripten und Szenen erscheinen im PDF, aber nicht in der Excel-Datei (sie hat dafür kein Blatt).
+
+**Speicherort:** Die Bemerkungen liegen in der Datei `notes.json` im Ordner `ha_doc` der Freigabe `share`. Sie bleiben bei einer Deinstallation des Add-ons erhalten und eignen sich für ein Backup. Die Bemerkungen sind an die Kennungen von Bereich, Gerät und Entität gebunden. Wird ein Gerät in Home Assistant gelöscht und neu angelegt, bekommt es eine neue Kennung, und die Bemerkung muss neu erfasst werden.
+
+# 10. Fehlersuche
 
 | Problem | Ursache und Lösung |
 |---|---|
@@ -139,18 +166,18 @@ Der Abschnitt **«Änderungen seit letztem Stand (optional)»** ist standardmäs
 | Fehlermeldung beim PDF-Erstellen | Den Text unter dem Knopf kopieren und als Issue melden (ohne persönliche Daten). |
 | Eine Datei lässt sich nicht öffnen | Seite neu laden. Das Add-on erreicht man nur über die Seitenleiste von Home Assistant (Ingress). |
 
-# 10. Datenschutz
+# 11. Datenschutz
 
-Das Add-on liest die Konfiguration über die interne Schnittstelle von Home Assistant (Supervisor) und schreibt Dateien nach `share/ha_doc`. Es sendet nichts ins Internet. **Das PDF enthält Namen und IDs deiner Geräte, IP- und MAC-Adressen, Automatisierungen und Räume.** Gib es mit Bedacht weiter und schwärze persönliche Angaben, bevor du es öffentlich zeigst.
+Das Add-on liest die Konfiguration über die interne Schnittstelle von Home Assistant (Supervisor) und schreibt Dateien nach `share/ha_doc`. Es sendet nichts ins Internet. **Das PDF enthält Namen und IDs deiner Geräte, IP- und MAC-Adressen, Automatisierungen, Räume und deine eigenen Bemerkungen.** Gib es mit Bedacht weiter und schwärze persönliche Angaben, bevor du es öffentlich zeigst.
 
-# 11. Bekannte Grenzen
+# 12. Bekannte Grenzen
 
-* YAML-Automatisierungen ohne `id` sind nicht lesbar (Kapitel 9).
+* YAML-Automatisierungen ohne `id` sind nicht lesbar (Kapitel 10).
 * Vom Blueprint selbst werden Auslöser und Aktionen nicht dargestellt, nur seine Eingaben.
 * Der Abschnitt «Netzwerk» funktioniert nur mit UniFi-Gateway oder Fritz!Box; Port-Zuordnungen der Switches fehlen.
 * Add-ons und Zigbee-Topologie sind (noch) nicht enthalten.
 * Excel wird nur manuell erstellt, nicht im Monatsbericht.
 
-# 12. Lizenz und Support
+# 13. Lizenz und Support
 
 MIT-Lizenz, siehe `LICENSE`. Das Add-on wird «wie es ist» bereitgestellt. Fehler und Wünsche bitte als Issue unter `https://github.com/markus321/ha-doc-addon/issues` melden, ohne Dateien mit persönlichen Daten anzuhängen.

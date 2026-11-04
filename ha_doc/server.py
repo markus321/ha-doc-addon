@@ -13,10 +13,12 @@ from urllib.parse import parse_qs, unquote
 
 import ha_changes
 import ha_doc
+import ha_notes
 
 OUT_DIR = os.environ.get("HA_DOC_OUT", "/share/ha_doc")
 DATA_DIR = os.environ.get("HA_DOC_DATA", "/data")
 SNAP_DIR = os.path.join(OUT_DIR, "snapshots")
+NOTES_FILE = os.path.join(OUT_DIR, "notes.json")
 DEMO = os.environ.get("HA_DOC_DEMO") == "1"
 PORT = int(os.environ.get("HA_DOC_PORT", "8099"))
 SUPERVISOR_IP = "172.30.32.2"  # Ingress-Anfragen kommen nur von hier
@@ -82,6 +84,17 @@ def get_areas():
     return _areas_cache["v"]
 
 
+_light = {"t": 0.0, "v": None}
+
+
+def light_data(force=False):
+    """Leichtgewichtige Daten (ohne Konfigurationen) für die Erfassungsseite, 5 Minuten zwischengespeichert."""
+    if force or not _light["v"] or time.time() - _light["t"] > 300:
+        _light["v"] = ha_doc.demo_data() if DEMO else ha_doc.fetch_all(None, os.environ["SUPERVISOR_TOKEN"], supervisor=True, light=True)
+        _light["t"] = time.time()
+    return _light["v"]
+
+
 def is_doc_file(f):
     return f.startswith(("ha_dokumentation_", "ha_monatsbericht_")) and f.endswith((".pdf", ".xlsx"))
 
@@ -101,8 +114,10 @@ def generate(sections, options, source="manuell", fmt="pdf"):
     try:
         state.update(msg="Lese Daten aus Home Assistant …", error="")
         data = ha_doc.demo_data() if DEMO else ha_doc.fetch_all(None, os.environ["SUPERVISOR_TOKEN"], supervisor=True)
+        nt = ha_notes.load(NOTES_FILE)
+        options = dict(options, notes=nt["items"], general_note=nt["general"])
         if fmt == "pdf" and "aenderungen" in (sections or []):
-            cur = ha_changes.snapshot(data)
+            cur = ha_changes.snapshot(data, nt)
             prev = ha_changes.load_latest(SNAP_DIR)
             options = dict(options, changes=ha_changes.compare(prev, cur))
             if prev is None or source == "automatisch" or options.get("save_snapshot"):
@@ -272,7 +287,7 @@ def page():
 body{{font-family:system-ui,sans-serif;margin:0;padding:24px;max-width:820px;color:var(--fg);background:var(--bg)}}
 h1{{margin-top:0}} h2{{font-size:15px;margin:18px 0 6px;color:var(--muted)}}
 button{{background:var(--accent);color:#fff;border:0;padding:12px 22px;border-radius:8px;font-size:16px;cursor:pointer}}
-button[disabled]{{opacity:.5;cursor:wait}} button.del{{background:transparent;color:var(--link);border:1px solid var(--line);padding:4px 10px;font-size:13px}} button.sec{{background:transparent;color:var(--link);border:1px solid var(--link);margin-left:8px}} table{{border-collapse:collapse;width:100%;margin-top:18px;background:var(--card)}}
+button[disabled]{{opacity:.5;cursor:wait}} button.del{{background:transparent;color:var(--link);border:1px solid var(--line);padding:4px 10px;font-size:13px}} a.btn{{display:inline-block;padding:12px 22px;border-radius:8px;font-size:16px;text-decoration:none;margin-left:8px}} a.btn.sec{{border:1px solid var(--link);color:var(--link)}} button.sec{{background:transparent;color:var(--link);border:1px solid var(--link);margin-left:8px}} table{{border-collapse:collapse;width:100%;margin-top:18px;background:var(--card)}}
 td,th{{border:1px solid var(--line);padding:8px 10px;text-align:left}} .msg{{margin:14px 0;color:var(--muted)}}
 .opts{{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:6px;margin:8px 0}}
 .opt{{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 10px;cursor:pointer;display:block}}
@@ -295,6 +310,7 @@ document.documentElement.style.colorScheme=(0.299*d[0]+0.587*d[1]+0.114*d[2])<12
 {area_html}
 <p><button name="action" value="generate" {btn}>PDF erstellen</button>
 <button name="action" value="xlsx" class="sec" {btn} title="Excel-Datei mit Geräten (Entitäten ein-/ausklappbar), Netzwerk und Integrationen. Verwendet Bereiche und Diagnose-Filter.">Excel erstellen</button>
+<a class="btn sec" href="notes" title="Eigene Bemerkungen zu Bereichen, Geräten, Entitäten, Automatisierungen u. a. erfassen">Bemerkungen erfassen</a>
 <button name="action" value="save" class="sec" title="Diese Auswahl wird für den automatischen Monatsbericht verwendet">Auswahl für Monatsbericht speichern</button></p></form>
 <div class="msg">{html.escape(state["msg"])}</div>{err}
 <table><tr><th>Datei</th><th>Grösse</th><th></th></tr>{rows}</table>
@@ -325,6 +341,13 @@ class Handler(BaseHTTPRequestHandler):
         if not self._allowed():
             return
         path = self.path.split("?")[0]
+        if path.endswith("/notes") or path == "notes":
+            q = parse_qs(self.path.split("?", 1)[1]) if "?" in self.path else {}
+            try:
+                body = ha_notes.page(light_data(force="reload" in q), ha_notes.load(NOTES_FILE), diag="diag" in q, saved="saved" in q)
+            except Exception:
+                body = "<pre>" + html.escape(traceback.format_exc()) + "</pre>"
+            return self._send(200, body)
         if "/files/" in path:
             name = os.path.basename(unquote(path.split("/files/", 1)[1]))
             full = os.path.join(OUT_DIR, name)
@@ -340,7 +363,15 @@ class Handler(BaseHTTPRequestHandler):
         if not self._allowed():
             return
         length = int(self.headers.get("Content-Length") or 0)
-        form = parse_qs(self.rfile.read(length).decode("utf-8", "replace"))
+        raw = self.rfile.read(length).decode("utf-8", "replace")
+        form = parse_qs(raw)
+        if self.path.split("?")[0].endswith("/notes") or self.path.split("?")[0] == "notes":
+            try:
+                form_all = parse_qs(raw, keep_blank_values=True)
+                ha_notes.save(NOTES_FILE, ha_notes.apply_post(ha_notes.load(NOTES_FILE), form_all, ha_notes.labels_for(light_data())))
+            except Exception:
+                state["error"] = traceback.format_exc()
+            return self._send(303, "", extra={"Location": "notes?saved=1"})
         if self.path.split("?")[0].endswith("/delete") or self.path.split("?")[0] == "delete":
             name = os.path.basename((form.get("file") or [""])[0])
             if is_doc_file(name) and os.path.isfile(os.path.join(OUT_DIR, name)):

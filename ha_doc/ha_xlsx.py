@@ -24,6 +24,8 @@ def _header(ws, cols, widths):
 
 def build_xlsx(data, out_path, options=None):
     opts = options or {}
+    notes = opts.get("notes") or {}
+    NOTE = lambda kind, key: (notes.get(f"{kind}:{key}") or "").strip()
     n = ha_doc.Namer(data)
     net = ha_doc.collect_network(data)
     ip_by_mac = {x["mac"]: x["ip"] for x in net if x["mac"]}
@@ -48,23 +50,23 @@ def build_xlsx(data, out_path, options=None):
     wb = Workbook()
     ws = wb.active
     ws.title = "Geräte"
-    _header(ws, ["Bereich / Gerät / Entität", "Hersteller / Modell", "IP", "Entität-ID", "Zustand", "Entitäten"],
-            [46, 34, 16, 52, 18, 10])
+    _header(ws, ["Bereich / Gerät / Entität", "Hersteller / Modell", "IP", "Entität-ID", "Zustand", "Entitäten", "Bemerkung"],
+            [46, 34, 16, 52, 18, 10, 60])
     ws.sheet_properties.outlinePr.summaryBelow = False  # +/- Knopf steht in der Gerätezeile
     areas = sorted(data["areas"], key=lambda a: (floors.get(a.get("floor_id"), {}).get("level", 99), a["name"]))
     areas.append({"area_id": None, "name": "Ohne Bereich", "floor_id": None})
 
-    def add_device(title, sub, ip, ents):
+    def add_device(title, sub, ip, ents, note=""):
         ents = shown(ents)
-        ws.append([title, sub, ip, "", "", len(ents)])
+        ws.append([title, sub, ip, "", "", len(ents), note])
         r = ws.max_row
-        for c in range(1, 7):
+        for c in range(1, 8):
             ws.cell(row=r, column=c).fill = DEV_FILL
         ws.cell(row=r, column=1).font = Font(bold=True)
         ws.cell(row=r, column=1).alignment = Alignment(indent=1)
         for e in ents:
             nm = n.names.get(e, "")
-            ws.append([nm if nm != e else "", "", "", e, state_of.get(e, "")])
+            ws.append([nm if nm != e else "", "", "", e, state_of.get(e, ""), "", NOTE("entity", e)])
             rr = ws.max_row
             ws.cell(row=rr, column=1).alignment = Alignment(indent=3)
             ws.row_dimensions[rr].outlineLevel = 1
@@ -78,36 +80,37 @@ def build_xlsx(data, out_path, options=None):
         if not devs and not loose:
             continue
         fl = floors.get(a.get("floor_id"), {}).get("name")
-        ws.append([a["name"] + (f"  ({fl})" if fl else "")])
+        ws.append([a["name"] + (f"  ({fl})" if fl else ""), "", "", "", "", "", NOTE("area", a["area_id"] or "_none")])
         r = ws.max_row
-        for c in range(1, 7):
+        for c in range(1, 8):
             ws.cell(row=r, column=c).fill = AREA_FILL
         ws.cell(row=r, column=1).font = Font(bold=True, size=12)
         for d in sorted(devs, key=lambda x: (x.get("name_by_user") or x.get("name") or "").lower()):
             ip = next((ip_by_mac[str(c[1]).lower()] for c in d.get("connections") or []
                        if len(c) == 2 and c[0] == "mac" and str(c[1]).lower() in ip_by_mac), "")
             add_device(d.get("name_by_user") or d.get("name") or "?",
-                       f"{d.get('manufacturer') or ''} {d.get('model') or ''}".strip(), ip, ents_by_dev.get(d["id"], []))
+                       f"{d.get('manufacturer') or ''} {d.get('model') or ''}".strip(), ip, ents_by_dev.get(d["id"], []), NOTE("device", d["id"]))
         if loose:
             add_device("Entitäten ohne Gerät", "", "", loose)
     ws.sheet_format.outlineLevelRow = 1
 
     if net:
         wn = wb.create_sheet("Netzwerk")
-        _header(wn, ["Name", "IP", "MAC", "Hersteller", "VLAN", "Verbindung", "Status", "Quelle"], [30, 16, 20, 30, 8, 28, 10, 12])
+        _header(wn, ["Name", "IP", "MAC", "Hersteller", "VLAN", "Verbindung", "Status", "Quelle", "Bemerkung"], [30, 16, 20, 30, 8, 28, 10, 12, 50])
         name_by_mac = {x["mac"]: x["name"] for x in net if x["mac"]}
         for x in sorted(net, key=lambda x: (x["vlan"] if isinstance(x["vlan"], int) else -1, ha_doc_ip_key(x))):
             conn = ("WLAN " + x["essid"] + (f" ({name_by_mac[x['ap_mac']]})" if x["ap_mac"] in name_by_mac else "")) if x["essid"] \
                 else ("Netzwerkgerät" if x["infra"] else ("LAN" if x["platform"] == "unifi" else ""))
             wn.append([x["name"], x["ip"], x["mac"], x["oui"], x["vlan"] if x["vlan"] is not None else "", conn,
-                       "online" if x["online"] else "offline", x["platform"]])
-        wn.auto_filter.ref = f"A1:H{wn.max_row}"
+                       "online" if x["online"] else "offline", x["platform"], NOTE("net", x["mac"] or x["ip"])])
+        wn.auto_filter.ref = f"A1:I{wn.max_row}"
 
     wi = wb.create_sheet("Integrationen")
-    _header(wi, ["Integration", "Domain", "Status", "Quelle"], [40, 28, 16, 16])
+    _header(wi, ["Integration", "Domain", "Status", "Quelle", "Bemerkung"], [40, 28, 16, 16, 50])
     for e in sorted(data["entries"], key=lambda x: x.get("domain", "")):
-        wi.append([e.get("title"), e.get("domain"), e.get("state"), e.get("source")])
-    wi.auto_filter.ref = f"A1:D{wi.max_row}"
+        wi.append([e.get("title"), e.get("domain"), e.get("state"), e.get("source"),
+                   NOTE("integration", e.get("entry_id") or f"{e.get('domain')}|{e.get('title')}")])
+    wi.auto_filter.ref = f"A1:E{wi.max_row}"
     wb.save(out_path)
 
 

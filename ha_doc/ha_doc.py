@@ -58,7 +58,7 @@ class HAClient:
         return r.json()
 
 
-def fetch_all(url, token, supervisor=False):
+def fetch_all(url, token, supervisor=False, light=False):
     c = HAClient(url, token, supervisor)
     data = {
         "config": c.get("/api/config") or {},
@@ -73,7 +73,7 @@ def fetch_all(url, token, supervisor=False):
         "scenes": [],
         "blueprints": {},
     }
-    for dom in ("automation", "script"):
+    for dom in () if light else ("automation", "script"):
         bp = c.ws_call("blueprint/list", domain=dom)
         data["blueprints"][dom] = bp if isinstance(bp, dict) else {}
     for st in data["states"]:
@@ -81,13 +81,13 @@ def fetch_all(url, token, supervisor=False):
         dom, obj = eid.split(".", 1)
         attrs = st.get("attributes", {})
         if dom == "automation":
-            cfg = c.get(f"/api/config/automation/config/{attrs['id']}") if attrs.get("id") else None
+            cfg = c.get(f"/api/config/automation/config/{attrs['id']}") if attrs.get("id") and not light else None
             data["automations"].append({"entity_id": eid, "state": st["state"], "attrs": attrs, "config": cfg})
         elif dom == "script":
-            cfg = c.get(f"/api/config/script/config/{obj}")
+            cfg = None if light else c.get(f"/api/config/script/config/{obj}")
             data["scripts"].append({"entity_id": eid, "state": st["state"], "attrs": attrs, "config": cfg})
         elif dom == "scene":
-            cfg = c.get(f"/api/config/scene/config/{attrs['id']}") if attrs.get("id") else None
+            cfg = c.get(f"/api/config/scene/config/{attrs['id']}") if attrs.get("id") and not light else None
             data["scenes"].append({"entity_id": eid, "state": st["state"], "attrs": attrs, "config": cfg})
     return data
 
@@ -746,14 +746,27 @@ def build_pdf(data, out_path, title="Home Assistant Dokumentation", sections=Non
 
     W = doc.width
     story = []
+    notes = opts.get("notes") or {}
+    NOTE = lambda kind, key: (notes.get(f"{kind}:{key}") or "").strip()
+    NOTE_FILL = colors.HexColor("#fff8dc")
+
+    def note_html(txt):
+        return "<i>Bemerkung:</i> " + escape(txt).replace("\n", "<br/>")
+
+    def note_box(txt):
+        t = Table([[Paragraph(note_html(txt), CELL)]], colWidths=[W])
+        t.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, -1), NOTE_FILL), ("BOX", (0, 0), (-1, -1), 0.25, colors.HexColor("#e6d9a0"))]))
+        return t
 
     # Deckblatt
     story += [Spacer(1, 70 * mm), Paragraph(escape(title), ParagraphStyle("T", parent=H1, fontSize=30, leading=36)),
               Spacer(1, 6 * mm), P(cfg.get("location_name", "Home Assistant"), ParagraphStyle("T2", parent=BODY, fontSize=16, leading=20, textColor=ACC)),
               Spacer(1, 25 * mm),
               table([["Home Assistant Version", cfg.get("version", "?")], ["Zeitzone", cfg.get("time_zone", "?")],
-                     ["Erstellt am", dt.datetime.now().strftime("%d.%m.%Y %H:%M")]], [50 * mm, 80 * mm], header=False),
-              PageBreak()]
+                     ["Erstellt am", dt.datetime.now().strftime("%d.%m.%Y %H:%M")]], [50 * mm, 80 * mm], header=False)]
+    if (opts.get("general_note") or "").strip():
+        story += [Spacer(1, 10 * mm), note_box(opts["general_note"].strip())]
+    story.append(PageBreak())
 
     main = story  # Hauptliste; Abschnitte, die nicht gewählt sind, landen in einer Wegwerfliste
 
@@ -810,14 +823,18 @@ def build_pdf(data, out_path, title="Home Assistant Dokumentation", sections=Non
                 return ip_by_mac[str(c[1]).lower()]
         return None
 
-    def device_table(head_text, sub_text, ents, hidden=0):
+    def device_table(head_text, sub_text, ents, hidden=0, note=""):
         """Ein Kasten pro Gerät: Kopfzeile mit Gerätename, darunter eine Zeile pro Entität (Kopf wiederholt sich auf Folgeseiten)."""
         head = Paragraph("<b>" + escape(head_text) + "</b>" +
                          (f"  <font color='#6b7785'>{escape(sub_text)}</font>" if sub_text else ""), CELL)
         rows = [[head, ""]]
+        if note:
+            rows.append([Paragraph(note_html(note), CELL), ""])
         for e in ents:
             nm = n.names.get(e, "")
-            rows.append([Paragraph(escape(nm if nm != e else ""), CELL), Paragraph(escape(e), CELLM)])
+            en = NOTE("entity", e)
+            rows.append([Paragraph(escape(nm if nm != e else ""), CELL),
+                         [Paragraph(escape(e), CELLM)] + ([Paragraph(note_html(en), CELL)] if en else [])])
         if hidden:
             rows.append([Paragraph("", SMALL), Paragraph(f"+ {hidden} Konfigurations-/Diagnose-Entitäten ausgeblendet", SMALL)])
         elif not ents:
@@ -826,7 +843,8 @@ def build_pdf(data, out_path, title="Home Assistant Dokumentation", sections=Non
         t.setStyle(TableStyle([("SPAN", (0, 0), (-1, 0)), ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e1f3fc")),
                                ("GRID", (0, 0), (-1, -1), 0.25, colors.lightgrey), ("VALIGN", (0, 0), (-1, -1), "TOP"),
                                ("TOPPADDING", (0, 0), (-1, -1), 2), ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
-                               ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f5f8fa")])]))
+                               ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f5f8fa")]),
+                               *([("SPAN", (0, 1), (-1, 1)), ("BACKGROUND", (0, 1), (-1, 1), NOTE_FILL)] if note else [])]))
         return t
 
     ent_ids_with_device = {e["entity_id"] for e in data["entities"] if e.get("device_id")}
@@ -847,13 +865,15 @@ def build_pdf(data, out_path, title="Home Assistant Dokumentation", sections=Non
             continue
         fl = floors.get(a.get("floor_id"), {}).get("name")
         story.append(Paragraph(escape(a["name"] + (f"  ({fl})" if fl else "")), H2))
+        if NOTE("area", a["area_id"] or "_none"):
+            story += [note_box(NOTE("area", a["area_id"] or "_none")), Spacer(1, 1.5 * mm)]
         for d in sorted(devs, key=lambda x: (x.get("name_by_user") or x.get("name") or "").lower()):
             sub = f"{d.get('manufacturer') or ''} {d.get('model') or ''}".strip()
             ip = device_ip(d)
             if ip:
                 sub = (sub + "  ·  IP " + ip).strip()
             shown, hid = split_diag(ents_by_dev.get(d["id"], []))
-            story.append(device_table(d.get("name_by_user") or d.get("name") or "?", sub, shown, hid))
+            story.append(device_table(d.get("name_by_user") or d.get("name") or "?", sub, shown, hid, note=NOTE("device", d["id"])))
             story.append(Spacer(1, 2.5 * mm))
         if loose:
             shown, hid = split_diag(sorted(loose))
@@ -864,9 +884,16 @@ def build_pdf(data, out_path, title="Home Assistant Dokumentation", sections=Non
     # Integrationen
     story = main if on("integrationen") else []
     story.append(Paragraph("Integrationen", H1))
-    story.append(table([["Integration", "Domain", "Status", "Quelle"]] +
-                       [[e.get("title"), e.get("domain"), e.get("state"), e.get("source")] for e in sorted(data["entries"], key=lambda x: x.get("domain", ""))],
-                       [55 * mm, 40 * mm, 30 * mm, W - 125 * mm]))
+    ek = lambda e: e.get("entry_id") or f"{e.get('domain')}|{e.get('title')}"
+    entries_sorted = sorted(data["entries"], key=lambda x: x.get("domain", ""))
+    if any(NOTE("integration", ek(e)) for e in entries_sorted):
+        story.append(table([["Integration", "Domain", "Status", "Quelle", "Bemerkung"]] +
+                           [[e.get("title"), e.get("domain"), e.get("state"), e.get("source"), NOTE("integration", ek(e))] for e in entries_sorted],
+                           [42 * mm, 30 * mm, 22 * mm, 22 * mm, W - 116 * mm]))
+    else:
+        story.append(table([["Integration", "Domain", "Status", "Quelle"]] +
+                           [[e.get("title"), e.get("domain"), e.get("state"), e.get("source")] for e in entries_sorted],
+                           [55 * mm, 40 * mm, 30 * mm, W - 125 * mm]))
     story.append(PageBreak())
 
     # Netzwerk
@@ -886,24 +913,26 @@ def build_pdf(data, out_path, title="Home Assistant Dokumentation", sections=Non
                             ["Online", online], ["Offline", len(net) - online]], [60 * mm, 30 * mm]))
         story.append(Spacer(1, 3 * mm))
         cols = [48 * mm, 28 * mm, 33 * mm, 32 * mm, W - 141 * mm]
+        nk = lambda x: NOTE("net", x["mac"] or x["ip"])
+        has_nn = any(nk(x) for x in net)
         if infra:
             story.append(Paragraph("Netzwerkgeräte", H2))
-            story.append(table([["Name", "IP", "MAC", "Status", ""]] +
-                               [[x["name"], x["ip"], x["mac"], "online" if x["online"] else "offline", ""] for x in infra], cols))
+            story.append(table([["Name", "IP", "MAC", "Status", "Bemerkung" if has_nn else ""]] +
+                               [[x["name"], x["ip"], x["mac"], "online" if x["online"] else "offline", nk(x)] for x in infra], cols))
         groups = defaultdict(list)
         for x in clients:
             groups[x["vlan"] if x["vlan"] is not None else "-"].append(x)
         for vlan in sorted(groups, key=lambda v: (v == "-", v if isinstance(v, int) else 0)):
             lst = sorted(groups[vlan], key=ip_key)
             story.append(Paragraph(f"VLAN {vlan}" if vlan != "-" else "Clients", H2))
-            rows = [["Name", "IP", "MAC", "Hersteller", "Verbindung"]]
+            rows = [["Name", "IP", "MAC", "Hersteller", "Verbindung"] + (["Bemerkung"] if has_nn else [])]
             for x in lst:
                 if x["essid"]:
                     conn = "WLAN " + x["essid"] + (f" ({name_by_mac[x['ap_mac']]})" if x["ap_mac"] in name_by_mac else "")
                 else:
                     conn = "LAN" if x["platform"] == "unifi" else ""
-                rows.append([x["name"] + ("" if x["online"] else " (offline)"), x["ip"], x["mac"], x["oui"], conn])
-            story.append(table(rows, cols))
+                rows.append([x["name"] + ("" if x["online"] else " (offline)"), x["ip"], x["mac"], x["oui"], conn] + ([nk(x)] if has_nn else []))
+            story.append(table(rows, [38 * mm, 24 * mm, 30 * mm, 26 * mm, 26 * mm, W - 144 * mm] if has_nn else cols))
     story.append(PageBreak())
 
     known = {s["entity_id"] for s in data["states"]}
@@ -987,6 +1016,8 @@ def build_pdf(data, out_path, title="Home Assistant Dokumentation", sections=Non
             status = {"on": "aktiv", "off": "deaktiviert"}.get(it["state"], it["state"]) if kind == "automation" else ""
             blk = [Paragraph(escape(name), H3), P(it["entity_id"] + (f"  |  Status: {status}" if status else "") +
                    (f"  |  Modus: {c.get('mode') or it['attrs'].get('mode')}" if kind != "scene" and (c or it['attrs'].get('mode')) else ""), SMALL)]
+            if NOTE(kind, it["entity_id"]):
+                blk.append(note_box(NOTE(kind, it["entity_id"])))
             mr = missing_refs(it)
             if mr:
                 blk.append(P("Fehlende Entitäten: " + ", ".join(mr), ParagraphStyle("miss", parent=SMALL, textColor=colors.HexColor("#c62828"))))

@@ -34,4 +34,6 @@ Die Abschnitte: `uebersicht`, `bereiche`, `integrationen`, `netzwerk`, `automati
 
 **Änderungen (optional):** Der Abschnitt «Änderungen seit letztem Stand» ist standardmässig aus. Wählst du ihn, vergleicht das PDF den aktuellen Stand mit der letzten gespeicherten Momentaufnahme (JSON im Ordner `snapshots`). Automatische Berichte speichern jedes Mal einen neuen Stand, manuelle Berichte nur mit der Option «diesen Stand als neue Referenz speichern» (der allererste Lauf speichert immer). Der Vergleich zeigt, **was** sich geändert hat, nicht **wer** es geändert hat. Home Assistant speichert das meist nicht.
 
+**Bemerkungen:** Mit dem Knopf «Bemerkungen erfassen» öffnest du eine Seite mit aufklappbaren Bereichen und Geräten (Plus-Zeichen). Dort kannst du zu Bereichen, Geräten, Entitäten, Integrationen, Netzwerk-Clients, Automatisierungen, Skripten und Szenen einen Text erfassen, dazu eine allgemeine Bemerkung für das Deckblatt. Sie erscheinen im PDF (gelb hinterlegt), in der Excel-Datei und im Änderungsvergleich. Gespeichert wird in `share/ha_doc/notes.json`.
+
 Das Add-on muss laufen, schalte dafür **Beim Systemstart starten** ein.
