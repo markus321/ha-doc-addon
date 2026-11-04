@@ -1,6 +1,6 @@
 ---
 title: "layvo Doku – Manual"
-subtitle: "Automatically document Home Assistant (PDF and Excel) – Version 0.5"
+subtitle: "Automatically document Home Assistant (PDF and Excel) – Version 0.6"
 lang: en
 ---
 
@@ -56,6 +56,10 @@ The interface follows Home Assistant's light/dark theme.
 * *Change comparison: save this state as the new reference* (only relevant with the changes section, chapter 8).
 
 **Areas.** Under "Bereiche auswählen" you can limit the documentation to individual areas (including "Ohne Bereich", i.e. no area).
+
+**Cover page.** Under **"Deckblatt: Ersteller und Kunde (optional)"** you can enter the company (creator) with address, phone, e-mail and website, the customer with address and object/project, and version/date and editor. With **"Angaben auf dem Deckblatt anzeigen"** (show details on the cover page) they appear on the cover of the PDFs, including the monthly report. It is off by default. The data is stored in `cover.json` in the `ha_doc` folder of the `share` folder. The PDF then contains names and addresses; you are responsible for sharing it and for data protection.
+
+**Logo.** Under **"Logo im PDF"** (logo in the PDF) you choose whether the cover page and the footer of the PDFs show the **layvo logo**, **no logo** or your **own logo**. For your own logo select a PNG or JPG file (2 MB at most) and click **"Logo speichern"** (save logo). A landscape logo with a transparent background works best. The setting is stored in the `branding` folder of the `share` folder and survives a reinstall. It also applies to the monthly report but not to the Excel file.
 
 **Buttons.**
 

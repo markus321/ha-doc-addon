@@ -721,19 +721,29 @@ def build_pdf(data, out_path, title="Home Assistant Dokumentation", sections=Non
 
     import os
     from reportlab.pdfgen import canvas as rl_canvas
-    logo_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logo_pdf.png")
-    has_logo = os.path.isfile(logo_path)
-    logo_ratio = 1165 / 399  # Breite / Höhe von logo_pdf.png
+    # Logo: opts["logo_path"] (None = kein Logo); ohne Angabe das mitgelieferte layvo-Logo
+    logo_path = opts["logo_path"] if "logo_path" in opts else os.path.join(os.path.dirname(os.path.abspath(__file__)), "logo_pdf.png")
+    has_logo = bool(logo_path) and os.path.isfile(logo_path)
+    logo_ratio = 1165 / 399  # Breite / Höhe (Standardlogo)
+    if has_logo:
+        try:
+            from PIL import Image as PILImage
+            with PILImage.open(logo_path) as _im:
+                logo_ratio = _im.width / _im.height
+        except Exception:
+            has_logo = False
 
     def footer(canvas, doc):
         canvas.saveState()
         x = 20 * mm
         if has_logo:
-            canvas.drawImage(logo_path, x, 8.2 * mm, width=7 * logo_ratio * mm / 1.0 * 0.62, height=7 * 0.62 * mm, mask="auto")
-            x += 7 * logo_ratio * 0.62 * mm + 3 * mm
+            fh = min(4.4 * mm, 24 * mm / logo_ratio)
+            fwid = fh * logo_ratio
+            canvas.drawImage(logo_path, x, 8.2 * mm, width=fwid, height=fh, mask="auto")
+            x += fwid + 3 * mm
         canvas.setFont("Helvetica", 8)
         canvas.setFillColor(colors.grey)
-        canvas.drawString(x, 10 * mm, f"{title} – {cfg.get('location_name', '')}")
+        canvas.drawString(x, 10 * mm, title)
         canvas.restoreState()
 
     class NumberedCanvas(rl_canvas.Canvas):
@@ -796,12 +806,35 @@ def build_pdf(data, out_path, title="Home Assistant Dokumentation", sections=Non
     from reportlab.platypus import Image as RLImage
     logo = []
     if has_logo:
-        logo = [RLImage(logo_path, width=52 * mm, height=52 * mm / logo_ratio, hAlign="LEFT"), Spacer(1, 28 * mm)]
+        lw = min(52 * mm, 26 * mm * logo_ratio)
+        logo = [RLImage(logo_path, width=lw, height=lw / logo_ratio, hAlign="LEFT"), Spacer(1, 28 * mm)]
     story += ([] if logo else [Spacer(1, 70 * mm)]) + logo + [Paragraph(escape(title), ParagraphStyle("T", parent=H1, fontSize=30, leading=36)),
               Spacer(1, 6 * mm), P(cfg.get("location_name", "Home Assistant"), ParagraphStyle("T2", parent=BODY, fontSize=16, leading=20, textColor=ACC)),
-              Spacer(1, 25 * mm),
-              cover_table([["Home Assistant Version", cfg.get("version", "?")], ["Zeitzone", cfg.get("time_zone", "?")],
-                     ["Erstellt am", dt.datetime.now().strftime("%d.%m.%Y %H:%M")]], [50 * mm, 80 * mm], header=False)]
+              Spacer(1, 12 * mm)]
+    cv = opts.get("cover")
+    if cv:
+        def blk(head, lines):
+            lines = [x for x in lines if x]
+            if not lines:
+                return ""
+            return [Paragraph(escape(head).upper(), ParagraphStyle("CH", parent=SMALL, fontSize=7.5, spaceAfter=2)),
+                    Paragraph("<br/>".join(f"<b>{escape(l)}</b>" if i == 0 else escape(l) for i, l in enumerate(lines)),
+                              ParagraphStyle("CB", parent=BODY, fontSize=9.5, leading=13))]
+        cr, cu = cv["creator"], cv["customer"]
+        left = blk("Erstellt von", [cr["name"]] + cr["address"].split("\n") + [cr["phone"], cr["email"], cr["web"]])
+        right = blk("Erstellt für", [cu["name"]] + cu["address"].split("\n") + ([f"Objekt: {cu['object']}"] if cu["object"] else []))
+        cells = [x for x in (left, right) if x]
+        if cells:
+            t = Table([cells], colWidths=[W / 2 - 2 * mm] * len(cells) if len(cells) > 1 else [W * 0.6], hAlign="LEFT")
+            t.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (-1, -1), 0)]))
+            story += [t, Spacer(1, 10 * mm)]
+    info = [["Home Assistant Version", cfg.get("version", "?")], ["Zeitzone", cfg.get("time_zone", "?")],
+            ["Erstellt am", dt.datetime.now().strftime("%d.%m.%Y %H:%M")]]
+    if cv and cv["doc"]["version"]:
+        info.append(["Version / Stand", cv["doc"]["version"]])
+    if cv and cv["doc"]["author"]:
+        info.append(["Bearbeiter", cv["doc"]["author"]])
+    story += [cover_table(info, [50 * mm, 80 * mm], header=False)]
     if (opts.get("general_note") or "").strip():
         story += [Spacer(1, 10 * mm), note_box(opts["general_note"].strip())]
     story.append(PageBreak())

@@ -36,4 +36,8 @@ Die Abschnitte: `uebersicht`, `bereiche`, `integrationen`, `netzwerk`, `automati
 
 **Bemerkungen:** Mit dem Knopf «Bemerkungen erfassen» öffnest du eine Seite mit aufklappbaren Bereichen und Geräten (Plus-Zeichen). Dort kannst du zu Bereichen, Geräten, Entitäten, Integrationen, Netzwerk-Clients, Automatisierungen, Skripten und Szenen einen Text erfassen, dazu eine allgemeine Bemerkung für das Deckblatt. Sie erscheinen im PDF (gelb hinterlegt), in der Excel-Datei und im Änderungsvergleich. Gespeichert wird in `share/ha_doc/notes.json`.
 
+**Deckblatt:** Unter «Deckblatt: Ersteller und Kunde» kannst du optional Firma (Ersteller) und Kunde mit Adresse sowie Version/Stand und Bearbeiter erfassen. Mit dem Haken «Angaben auf dem Deckblatt anzeigen» erscheinen sie auf dem Deckblatt (auch im Monatsbericht). Standardmässig ist das aus. Die Angaben liegen in `share/ha_doc/cover.json`. Du bist für Weitergabe und Datenschutz der PDFs selbst verantwortlich.
+
+**Logo:** Unter «Logo im PDF» wählst du das layvo-Logo, kein Logo oder ein eigenes Logo (PNG oder JPG, höchstens 2 MB). Das Logo steht auf dem Deckblatt und klein in der Fusszeile der PDFs. Die Einstellung liegt in `share/ha_doc/branding` und bleibt bei einer Neuinstallation erhalten.
+
 Das Add-on muss laufen, schalte dafür **Beim Systemstart starten** ein.

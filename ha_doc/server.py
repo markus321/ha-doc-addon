@@ -11,7 +11,9 @@ import traceback
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, unquote
 
+import ha_brand
 import ha_changes
+import ha_cover
 import ha_doc
 import ha_notes
 
@@ -115,7 +117,8 @@ def generate(sections, options, source="manuell", fmt="pdf"):
         state.update(msg="Lese Daten aus Home Assistant …", error="")
         data = ha_doc.demo_data() if DEMO else ha_doc.fetch_all(None, os.environ["SUPERVISOR_TOKEN"], supervisor=True)
         nt = ha_notes.load(NOTES_FILE)
-        options = dict(options, notes=nt["items"], general_note=nt["general"])
+        options = dict(options, notes=nt["items"], general_note=nt["general"], logo_path=ha_brand.logo_path(OUT_DIR),
+                       cover=ha_cover.active(ha_cover.load(OUT_DIR)))
         if fmt == "pdf" and "aenderungen" in (sections or []):
             cur = ha_changes.snapshot(data, nt)
             prev = ha_changes.load_latest(SNAP_DIR)
@@ -255,6 +258,47 @@ def checkbox(name, value, label, checked):
     return f'<label class="opt"><input type="checkbox" name="{name}" value="{html.escape(value)}"{" checked" if checked else ""}> {html.escape(label)}</label>'
 
 
+def cover_block():
+    c = ha_cover.load(OUT_DIR)
+    E = html.escape
+
+    def inp(g, k, label, mx, multi):
+        v = c[g][k]
+        if multi:
+            return f'<label class="fld">{E(label)}<textarea name="{g}_{k}" maxlength="{mx}" rows="2">{E(v)}</textarea></label>'
+        return f'<label class="fld">{E(label)}<input type="text" name="{g}_{k}" maxlength="{mx}" value="{E(v, quote=True)}"></label>'
+
+    def group(title, g):
+        return f'<div><b>{E(title)}</b>' + "".join(inp(g, k, lab, mx, m) for k, lab, mx, m in ha_cover.FIELDS[g]) + '</div>'
+    return (
+        '<details><summary>Deckblatt: Ersteller und Kunde (optional)</summary>'
+        '<form method="post" action="cover">'
+        f'<label class="opt"><input type="checkbox" name="enabled" value="1"{" checked" if c["enabled"] else ""}> Angaben auf dem Deckblatt anzeigen</label>'
+        '<div class="opts" style="grid-template-columns:repeat(auto-fit,minmax(260px,1fr))">'
+        + group("Ersteller (Firma)", "creator") + group("Kunde", "customer") + group("Dokument", "doc") +
+        '</div><p class="msg">Das PDF enthält dann diese Namen und Adressen. Du bist für Weitergabe und Datenschutz selbst verantwortlich.</p>'
+        '<p><button class="sec" style="margin-left:0">Deckblatt speichern</button></p></form></details>')
+
+
+def logo_block():
+    b = ha_brand.load(OUT_DIR)
+    chk = lambda m: " checked" if b["mode"] == m else ""
+    cust = ('<img src="branding/logo" alt="Eigenes Logo" style="max-height:40px;vertical-align:middle;margin-left:8px;background:#fff;border-radius:4px;padding:2px">'
+            if b["custom"] else '<span class="msg"> (noch kein eigenes Logo hochgeladen)</span>')
+    return (
+        '<details><summary>Logo im PDF</summary>'
+        '<form method="post" action="branding"><div class="opts" style="grid-template-columns:1fr">'
+        f'<label class="opt"><input type="radio" name="mode" value="layvo"{chk("layvo")}> layvo-Logo</label>'
+        f'<label class="opt"><input type="radio" name="mode" value="none"{chk("none")}> Kein Logo</label>'
+        f'<label class="opt"><input type="radio" name="mode" value="custom" id="r_custom"{chk("custom")}> Eigenes Logo (PNG oder JPG, max. 2 MB){cust}</label>'
+        '</div><p><input type="file" id="lf" accept="image/png,image/jpeg"> '
+        '<input type="hidden" name="data" id="ld"><button class="sec" style="margin-left:0">Logo speichern</button></p></form>'
+        '<script>document.getElementById("lf").onchange=function(){var f=this.files[0];if(!f)return;'
+        'if(f.size>2000000){alert("Datei zu gross (max. 2 MB)");this.value="";return;}'
+        'var r=new FileReader();r.onload=function(){document.getElementById("ld").value=r.result.split(",")[1];'
+        'document.getElementById("r_custom").checked=true;};r.readAsDataURL(f);};</script></details>')
+
+
 def page():
     files = sorted((f for f in os.listdir(OUT_DIR) if is_doc_file(f)),
                    key=lambda f: os.path.getmtime(os.path.join(OUT_DIR, f)), reverse=True)
@@ -276,6 +320,7 @@ def page():
         items += checkbox("areas", "_none", "Ohne Bereich", sel is None or "_none" in sel)
         area_html = (f'<details><summary>Bereiche auswählen ({len(areas) + 1})</summary><input type="hidden" name="areas_present" value="1">'
                      f'<div class="opts">{items}</div></details>')
+    logo_html = cover_block() + logo_block()
     extra = (checkbox("save_snap", "1", "Änderungsvergleich: diesen Stand als neue Referenz speichern (sonst nur Vergleich; automatische Berichte speichern immer)", state["save_snap"]) +
              checkbox("hide_diag", "1", "Konfigurations- und Diagnose-Entitäten ausblenden (kürzere Geräteliste)", state["hide_diag"]) +
              checkbox("only_problems", "1", "Automatisierungen, Skripte, Szenen: nur mit fehlenden Entitäten", state["only_problems"]))
@@ -287,7 +332,7 @@ def page():
 body{{font-family:system-ui,sans-serif;margin:0;padding:24px;max-width:820px;color:var(--fg);background:var(--bg)}}
 h1{{margin-top:0}} h2{{font-size:15px;margin:18px 0 6px;color:var(--muted)}}
 button{{background:var(--accent);color:#fff;border:0;padding:12px 22px;border-radius:8px;font-size:16px;cursor:pointer}}
-button[disabled]{{opacity:.5;cursor:wait}} button.del{{background:transparent;color:var(--link);border:1px solid var(--line);padding:4px 10px;font-size:13px}} a.btn{{display:inline-block;padding:12px 22px;border-radius:8px;font-size:16px;text-decoration:none;margin-left:8px}} a.btn.sec{{border:1px solid var(--link);color:var(--link)}} button.sec{{background:transparent;color:var(--link);border:1px solid var(--link);margin-left:8px}} table{{border-collapse:collapse;width:100%;margin-top:18px;background:var(--card)}}
+button[disabled]{{opacity:.5;cursor:wait}} button.del{{background:transparent;color:var(--link);border:1px solid var(--line);padding:4px 10px;font-size:13px}} a.btn{{display:inline-block;padding:12px 22px;border-radius:8px;font-size:16px;text-decoration:none;margin-left:8px}} a.btn.sec{{border:1px solid var(--link);color:var(--link)}} label.fld{{display:block;margin:6px 0;font-size:13px;color:var(--muted)}} label.fld input,label.fld textarea{{display:block;width:100%;box-sizing:border-box;margin-top:2px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--fg);font:inherit}} button.sec{{background:transparent;color:var(--link);border:1px solid var(--link);margin-left:8px}} table{{border-collapse:collapse;width:100%;margin-top:18px;background:var(--card)}}
 td,th{{border:1px solid var(--line);padding:8px 10px;text-align:left}} .msg{{margin:14px 0;color:var(--muted)}}
 .opts{{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:6px;margin:8px 0}}
 .opt{{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 10px;cursor:pointer;display:block}}
@@ -308,6 +353,7 @@ document.documentElement.style.colorScheme=(0.299*d[0]+0.587*d[1]+0.114*d[2])<12
 <h2>Abschnitte</h2><div class="opts">{boxes}</div>
 <h2>Optionen</h2><div class="opts" style="grid-template-columns:1fr">{extra}</div>
 {area_html}
+{logo_html}
 <p><button name="action" value="generate" {btn}>PDF erstellen</button>
 <button name="action" value="xlsx" class="sec" {btn} title="Excel-Datei mit Geräten (Entitäten ein-/ausklappbar), Netzwerk und Integrationen. Verwendet Bereiche und Diagnose-Filter.">Excel erstellen</button>
 <a class="btn sec" href="notes" title="Eigene Bemerkungen zu Bereichen, Geräten, Entitäten, Automatisierungen u. a. erfassen">Bemerkungen erfassen</a>
@@ -348,6 +394,12 @@ class Handler(BaseHTTPRequestHandler):
             except Exception:
                 body = "<pre>" + html.escape(traceback.format_exc()) + "</pre>"
             return self._send(200, body)
+        if path.endswith("/branding/logo") or path == "branding/logo":
+            p = ha_brand.load(OUT_DIR)["custom"]
+            if p and os.path.isfile(p):
+                with open(p, "rb") as f:
+                    return self._send(200, f.read(), "image/png" if p.endswith(".png") else "image/jpeg")
+            return self.send_error(404)
         if "/files/" in path:
             name = os.path.basename(unquote(path.split("/files/", 1)[1]))
             full = os.path.join(OUT_DIR, name)
@@ -365,6 +417,23 @@ class Handler(BaseHTTPRequestHandler):
         length = int(self.headers.get("Content-Length") or 0)
         raw = self.rfile.read(length).decode("utf-8", "replace")
         form = parse_qs(raw)
+        if self.path.split("?")[0].endswith("/cover") or self.path.split("?")[0] == "cover":
+            try:
+                ha_cover.save_from_form(OUT_DIR, parse_qs(raw))
+                state["msg"] = "Deckblatt-Angaben gespeichert."
+            except Exception as e:
+                state["msg"] = f"Deckblatt nicht gespeichert: {e}"
+            return self._send(303, "", extra={"Location": "./"})
+        if self.path.split("?")[0].endswith("/branding") or self.path.split("?")[0] == "branding":
+            f = parse_qs(raw)
+            try:
+                if f.get("data") and f["data"][0]:
+                    ha_brand.save_custom(OUT_DIR, f["data"][0])
+                ha_brand.save_mode(OUT_DIR, (f.get("mode") or ["layvo"])[0])
+                state["msg"] = "Logo-Einstellung gespeichert."
+            except Exception as e:
+                state["msg"] = f"Logo nicht gespeichert: {e}"
+            return self._send(303, "", extra={"Location": "./"})
         if self.path.split("?")[0].endswith("/notes") or self.path.split("?")[0] == "notes":
             try:
                 form_all = parse_qs(raw, keep_blank_values=True)

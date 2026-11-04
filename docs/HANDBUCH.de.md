@@ -1,6 +1,6 @@
 ---
 title: "layvo Doku – Handbuch"
-subtitle: "Home Assistant automatisch dokumentieren (PDF und Excel) – Version 0.5"
+subtitle: "Home Assistant automatisch dokumentieren (PDF und Excel) – Version 0.6"
 lang: de
 ---
 
@@ -54,6 +54,10 @@ Die Oberfläche folgt dem Hell-/Dunkelmodus von Home Assistant.
 * *Änderungsvergleich: diesen Stand als neue Referenz speichern* (nur relevant mit dem Abschnitt «Änderungen», Kapitel 8).
 
 **Bereiche.** Unter «Bereiche auswählen» lässt sich die Dokumentation auf einzelne Bereiche beschränken (inklusive «Ohne Bereich»).
+
+**Deckblatt.** Unter **«Deckblatt: Ersteller und Kunde (optional)»** erfasst du Firma (Ersteller) mit Adresse, Telefon, E-Mail und Webseite, den Kunden mit Adresse und Objekt/Projekt sowie Version/Stand und Bearbeiter. Mit **«Angaben auf dem Deckblatt anzeigen»** erscheinen sie auf dem Deckblatt der PDFs, auch im Monatsbericht. Standardmässig ist die Funktion aus. Gespeichert wird in `cover.json` im Ordner `ha_doc` der Freigabe. Das PDF enthält dann Namen und Adressen; für Weitergabe und Datenschutz bist du selbst verantwortlich.
+
+**Logo.** Unter **«Logo im PDF»** wählst du, ob auf dem Deckblatt und in der Fusszeile der PDFs das **layvo-Logo**, **kein Logo** oder ein **eigenes Logo** steht. Für ein eigenes Logo wählst du eine PNG- oder JPG-Datei (höchstens 2 MB) und klickst auf **«Logo speichern»**. Am besten eignet sich ein querformatiges Logo mit transparentem Hintergrund. Die Einstellung liegt im Ordner `branding` der Freigabe und bleibt bei einer Neuinstallation erhalten. Sie gilt auch für den Monatsbericht, nicht für die Excel-Datei.
 
 **Knöpfe.**
 

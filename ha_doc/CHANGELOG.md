@@ -1,5 +1,12 @@
 # Änderungen
 
+## 0.6.0
+- Neu, optional und standardmässig aus: **Deckblatt-Angaben** (Ersteller/Firma, Kunde, Version/Stand, Bearbeiter) unter «Deckblatt: Ersteller und Kunde». Erscheinen auf dem Deckblatt der PDFs, auch im Monatsbericht; gespeichert in `share/ha_doc/cover.json`.
+
+## 0.5.4
+- Logo einstellbar: layvo-Logo, kein Logo oder ein eigenes Logo (PNG/JPG), unter «Logo im PDF» in der Oberfläche. Gilt für Deckblatt und Fusszeile; wird in `share/ha_doc/branding` gespeichert.
+- Fusszeile der PDFs zeigt nur noch «Home Assistant Dokumentation» (der Standortname steht auf dem Deckblatt).
+
 ## 0.5.3
 - Logo im Stil von layvo Studio (transparent, oben links auf dem Deckblatt, klein in der Fusszeile) und «Seite n / N».
 
